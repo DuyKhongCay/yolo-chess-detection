@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chess-pieces-detection"
+version = "0.1.0"
+description = "Chess piece detection, perspective transformation, and FEN generation pipeline using fine-tuned YOLOv11m"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "ultralytics>=8.3.0",
+    "opencv-python>=4.8.0",
+    "pandas>=2.0.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "pillow>=10.0.0",
+    "pyyaml>=6.0",
+    "numpy>=1.24.0",
+    "tqdm>=4.65.0",
+    "draccus>=0.8.0",
+]
+
+[project.scripts]
+chess-download = "scripts.chessred_download:download_chessred"
+chess-train = "scripts.train:train"
+chess-evaluate = "scripts.evaluate:evaluate"
+chess-predict = "scripts.predict:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "scripts*"]
