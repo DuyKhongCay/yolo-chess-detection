@@ -11,7 +11,7 @@ IMAGES_URL = "https://drive.google.com/file/d/1jxmFxjOy0qefdCZ_x3DMNtsvAK4LojEw/
 ANNOTATIONS_URL = "https://data.4tu.nl/file/99b5c721-280b-450b-b058-b2900b69a90f/3cae6364-daca-4967-b426-1e4b68cdb64c"
 
 # Target directory to save and extract dataset
-TARGET_DIR = Path(__file__).resolve().parent / "datasets"
+TARGET_DIR = Path(__file__).resolve().parent.parent / "datasets"
 
 
 def ensure_gdown():
@@ -86,14 +86,20 @@ def download_and_extract_images(url: str, output_dir: Path) -> None:
     print(f"Extraction completed successfully! Images are ready at: {images_dir}")
 
 
-def download_chessred(images_url: str, annotations_url: str, output_dir: Path) -> None:
+def download_chessred(
+    images_url: str = IMAGES_URL,
+    annotations_url: str = ANNOTATIONS_URL,
+    output_dir: Path | None = None,
+) -> None:
     """Main workflow to check local dataset existence and download missing files.
 
     Args:
         images_url (str): URL for images zip file.
         annotations_url (str): URL for annotations.json file.
-        output_dir (Path): Path to dataset directory.
+        output_dir (Path, optional): Path to dataset directory. Defaults to TARGET_DIR.
     """
+    if output_dir is None:
+        output_dir = TARGET_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Download annotations.json if missing

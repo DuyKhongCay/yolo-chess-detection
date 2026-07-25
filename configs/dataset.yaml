@@ -7,17 +7,18 @@ test: images
 # Path to original ChessRED annotations JSON file
 annotations_json: /home/duykhongcay/lerobot_ws/chess_pieces_detection/datasets/annotations.json
 
-nc: 12
+nc: 13
 names:
-  0: black-bishop
-  1: black-king
-  2: black-knight
-  3: black-pawn
-  4: black-queen
-  5: black-rook
-  6: white-bishop
-  7: white-king
-  8: white-knight
-  9: white-pawn
-  10: white-queen
-  11: white-rook
+  0: white-pawn
+  1: white-rook
+  2: white-knight
+  3: white-bishop
+  4: white-queen
+  5: white-king
+  6: black-pawn
+  7: black-rook
+  8: black-knight
+  9: black-bishop
+  10: black-queen
+  11: black-king
+  12: empty
