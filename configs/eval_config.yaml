@@ -1,6 +1,6 @@
 # Evaluation configuration for fine-tuned YOLOv11m model using Draccus
-model: models/yolo11m_chessred/weights/best.pt
-data: datasets/dataset.yaml
+model: runs/detect/chess_detection_yolo11m-3/weights/best.pt
+data: configs/dataset.yaml
 imgsz: 640
 split: test
 device: '0'

@@ -1,109 +1,62 @@
-"""Fine-tuning script for YOLOv11m on ChessRED dataset using Draccus for configuration management."""
-
-from dataclasses import dataclass, field
+import os
+from dataclasses import dataclass
 from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
 import draccus
 from ultralytics import YOLO
-from scripts.dataset import ChessREDTrainer
-
+from src.dataset import ChessREDTrainer
 
 @dataclass
 class TrainConfig:
     """Dataclass configuration for fine-tuning YOLOv11m on ChessRED using Draccus."""
-    data: str = field(
-        default=str(PROJECT_ROOT / "datasets" / "dataset.yaml"),
-        metadata={"help": "Path to dataset.yaml config file."},
-    )
-    model: str = field(
-        default="yolo11m.pt",
-        metadata={"help": "Pretrained model checkpoint path or architecture file (.pt / .yaml)."},
-    )
-    epochs: int = field(
-        default=60,
-        metadata={"help": "Number of training epochs."},
-    )
-    batch: int = field(
-        default=16,
-        metadata={"help": "Batch size for training."},
-    )
-    imgsz: int = field(
-        default=640,
-        metadata={"help": "Input image resolution in pixels."},
-    )
-    device: str = field(
-        default="0",
-        metadata={"help": "CUDA device ID or 'cpu'."},
-    )
-    project: str = field(
-        default=str(PROJECT_ROOT / "models"),
-        metadata={"help": "Directory to save training artifacts and model checkpoints."},
-    )
-    name: str = field(
-        default="yolo11m_chessred",
-        metadata={"help": "Experiment name for saved run."},
-    )
-    patience: int = field(
-        default=15,
-        metadata={"help": "Early stopping patience (epochs without improvement)."},
-    )
-    optimizer: str = field(
-        default="AdamW",
-        metadata={"help": "Optimizer algorithm (e.g. AdamW, SGD)."},
-    )
-    lr0: float = field(
-        default=0.001,
-        metadata={"help": "Initial learning rate."},
-    )
-    lrf: float = field(
-        default=0.01,
-        metadata={"help": "Final learning rate fraction for Cosine decay."},
-    )
-    cos_lr: bool = field(
-        default=True,
-        metadata={"help": "Enable Cosine Annealing learning rate schedule."},
-    )
-    mosaic: float = field(
-        default=1.0,
-        metadata={"help": "Mosaic data augmentation probability."},
-    )
-    mixup: float = field(
-        default=0.1,
-        metadata={"help": "Mixup data augmentation probability."},
-    )
-    degrees: float = field(
-        default=15.0,
-        metadata={"help": "Rotation augmentation degrees."},
-    )
-    scale: float = field(
-        default=0.5,
-        metadata={"help": "Scale augmentation factor."},
-    )
-    fliplr: float = field(
-        default=0.5,
-        metadata={"help": "Horizontal flip probability."},
-    )
-    flipud: float = field(
-        default=0.0,
-        metadata={"help": "Vertical flip probability (keep 0.0 for chess board)."},
-    )
 
+    # Path to dataset configuration file
+    data: str = "datasets/dataset.yaml"
+    # Pretrained model checkpoint path or architecture file (.pt / .yaml)
+    model: str = "yolo11m.pt"
+    # Total number of training epochs
+    epochs: int = 60
+    # Batch size (-1 for AutoBatching based on available memory)
+    batch: int = -1
+    # Input image resolution in pixels
+    imgsz: int = 640
+    # CUDA device ID (e.g. '0', '0,1') or 'cpu'
+    device: str = "cpu"
+    # Experiment run name for saved outputs
+    name: str = "chess_detection_yolo11m"
+    # Early stopping patience (epochs without improvement)
+    patience: int | None = 15
+    # Optimizer algorithm (e.g. AdamW, SGD, Auto)
+    optimizer: str | None = "AdamW"
+    # Initial learning rate
+    lr0: float = 0.001
+    # Final learning rate fraction for Cosine decay
+    lrf: float = 0.01
+    # Enable Cosine Annealing learning rate schedule
+    cos_lr: bool = True
+    # Mosaic data augmentation probability
+    mosaic: float = 1.0
+    # Mixup data augmentation probability
+    mixup: float = 0.1
+    # Rotation data augmentation angle in degrees
+    degrees: float = 15.0
+    # Scale data augmentation gain factor
+    scale: float = 0.5
+    # Horizontal flip data augmentation probability
+    fliplr: float = 0.5
+    # Vertical flip data augmentation probability
+    flipud: float = 0.0
+    # Allow overwriting existing experiment directory
+    exist_ok: bool = True
+    verbose: bool = False
+    val: bool = True
+    resume: bool = False
 
 @draccus.wrap()
 def train(cfg: TrainConfig):
     """Main training execution loop wrapped with Draccus."""
-    # Resolve absolute path for dataset config to avoid CWD issues
-    data_path = Path(cfg.data)
-    if not data_path.is_absolute():
-        if (PROJECT_ROOT / data_path).exists():
-            data_path = (PROJECT_ROOT / data_path).resolve()
-        else:
-            data_path = data_path.resolve()
 
     print("=== Starting YOLOv11m Fine-Tuning on ChessRED ===")
-    print(f"Dataset config: {data_path}")
+    print(f"Dataset config: {cfg.data}")
     print(f"Base model:     {cfg.model}")
     print(f"Resolution:     {cfg.imgsz}x{cfg.imgsz}")
     print(f"Epochs:         {cfg.epochs}, Batch Size: {cfg.batch}")
@@ -113,12 +66,12 @@ def train(cfg: TrainConfig):
 
     # Train model using custom ChessREDTrainer to read COCO JSON directly
     results = yolo_model.train(
-        data=str(data_path),
+        data=str(cfg.data),
         epochs=cfg.epochs,
         batch=cfg.batch,
         imgsz=cfg.imgsz,
         device=cfg.device,
-        project=cfg.project,
+        # project=cfg.project,
         name=cfg.name,
         trainer=ChessREDTrainer,
         patience=cfg.patience,
@@ -132,13 +85,17 @@ def train(cfg: TrainConfig):
         scale=cfg.scale,
         fliplr=cfg.fliplr,
         flipud=cfg.flipud,
+        exist_ok=cfg.exist_ok,
+        verbose=cfg.verbose,
         save=True,
         plots=True,
-        val=True,
+        val=cfg.val,
+        resume= cfg.resume
+        
     )
 
     print(f"\n=== Training Completed Successfully ===")
-    print(f"Checkpoints and metrics saved to: {Path(cfg.project) / cfg.name}")
+    print(f"Checkpoints and metrics saved to: {cfg.name}")
 
 
 if __name__ == "__main__":

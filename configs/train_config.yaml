@@ -1,21 +1,24 @@
 # Training configuration for fine-tuning YOLOv11m on ChessRED using Draccus
-data: datasets/dataset.yaml
+data: configs/dataset.yaml
+# model: runs/detect/chess_detection_yolo11m-3/weights/last.pt
 model: yolo11m.pt
-epochs: 1
-batch: -1
+epochs: 60
+batch: 1
 imgsz: 640
 device: '0'
-project: models
-name: yolo11m_chessred
+name: chess_detection_yolo11m
 patience: 15
-optimizer: AdamW
-lr0: 0.001
+optimizer: auto
+lr0: 0.01
 lrf: 0.01
 cos_lr: true
 mosaic: 1.0
 mixup: 0.1
-degrees: 15.0
+degrees: 0.0
 scale: 0.5
 fliplr: 0.5
 flipud: 0.0
-exist_ok: true
+exist_ok: false
+verbose: false
+val: true
+resume: true

@@ -7,7 +7,7 @@ from PIL import Image
 
 from ultralytics.data.dataset import DATASET_CACHE_VERSION, YOLODataset
 from ultralytics.data.utils import get_hash, load_dataset_cache_file, save_dataset_cache_file
-from ultralytics.models.yolo.detect import DetectionTrainer
+from ultralytics.models.yolo.detect import DetectionTrainer, DetectionValidator
 from ultralytics.utils import TQDM, colorstr
 
 
@@ -48,9 +48,8 @@ class ChessREDDataset(YOLODataset):
         with open(self.json_file, "r") as f:
             coco = json.load(f)
 
-        # Filter out any non-piece category (such as 'empty') and sort remaining piece categories by id
-        valid_cats = [c for c in coco.get("categories", []) if c.get("name", "") != "empty"]
-        valid_cats = sorted(valid_cats, key=lambda c: c["id"])
+        # Sort all categories (including 'empty') by id
+        valid_cats = sorted(coco.get("categories", []), key=lambda c: c["id"])
 
         # Map original category id to 0-indexed contiguous class index
         cat_id_to_cls = {cat["id"]: i for i, cat in enumerate(valid_cats)}
@@ -166,6 +165,32 @@ class ChessREDDataset(YOLODataset):
         return cache["labels"]
 
 
+class ChessREDValidator(DetectionValidator):
+    """Custom DetectionValidator class integrating ChessREDDataset for validation/evaluation."""
+
+    def build_dataset(self, img_path, mode="val", batch=None):
+        """Build and return a ChessREDDataset instance for validation/testing."""
+        json_file = self.data.get("annotations_json", "datasets/annotations.json")
+        return ChessREDDataset(
+            img_path=img_path,
+            json_file=json_file,
+            split=mode,
+            imgsz=self.args.imgsz,
+            batch_size=batch,
+            augment=False,
+            hyp=self.args,
+            rect=self.args.rect or mode == "val",
+            cache=self.args.cache or None,
+            single_cls=self.args.single_cls or False,
+            stride=int(self.stride) if hasattr(self, "stride") else 32,
+            pad=0.5,
+            prefix=colorstr(f"{mode}: "),
+            task=self.args.task,
+            classes=self.args.classes,
+            fraction=1.0,
+        )
+
+
 class ChessREDTrainer(DetectionTrainer):
     """Custom DetectionTrainer class integrating ChessREDDataset into Ultralytics YOLO training loop."""
 
@@ -189,4 +214,17 @@ class ChessREDTrainer(DetectionTrainer):
             task=self.args.task,
             classes=self.args.classes,
             fraction=self.args.fraction if mode == "train" else 1.0,
+        )
+
+    def get_validator(self):
+        """Return a ChessREDValidator instance for validation."""
+        self.loss_names = "box_loss", "cls_loss", "dfl_loss"
+        
+        import copy
+        
+        return ChessREDValidator(
+            self.test_loader, 
+            save_dir=self.save_dir, 
+            args=copy.copy(self.args), 
+            _callbacks=self.callbacks if hasattr(self, 'callbacks') else None
         )
