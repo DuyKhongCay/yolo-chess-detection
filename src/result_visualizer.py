@@ -5,32 +5,26 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Mapping of YOLO class names to FEN characters
-CLASS_NAME_TO_FEN = {
-    0: "P", 1: "N", 2: "B", 3: "R", 4: "Q", 5: "K",
-    6: "p", 7: "n", 8: "b", 9: "r", 10: "q", 11: "k",
-}
-
 # Unicode symbols for rendering 2D board representation
 UNICODE_PIECES = {
-    "P": "♙", "N": "♘", "B": "♗", "R": "♖", "Q": "♕", "K": "♔",
-    "p": "♟", "n": "♞", "b": "♝", "r": "♜", "q": "♛", "k": "♚",
+    "P": "♙", "R": "♖", "N": "♘", "B": "♗", "Q": "♕", "K": "♔",
+    "p": "♟", "r": "♜", "n": "♞", "b": "♝", "q": "♛", "k": "♚",
 }
 
 # Color palette for drawing YOLO bounding boxes (BGR format)
 CLASS_COLORS = {
-    "white-pawn": (255, 200, 100),
-    "white-knight": (255, 170, 0),
-    "white-bishop": (255, 140, 0),
-    "white-rook": (255, 100, 0),
-    "white-queen": (255, 50, 0),
-    "white-king": (255, 0, 100),
-    "black-pawn": (100, 200, 255),
-    "black-knight": (0, 170, 255),
-    "black-bishop": (0, 140, 255),
-    "black-rook": (0, 100, 255),
-    "black-queen": (50, 0, 255),
-    "black-king": (100, 0, 255),
+    "P": (255, 200, 100), 
+    "R": (255, 170, 0),
+    "N": (255, 140, 0), 
+    "B": (255, 100, 0),
+    "Q": (255, 50, 0), 
+    "K": (255, 0, 100),
+    "p": (100, 200, 255),
+    "r": (0, 170, 255), 
+    "n": (0, 140, 255), 
+    "b": (0, 100, 255), 
+    "q": (50, 0, 255), 
+    "k": (100, 0, 255),
 }
 
 
@@ -82,14 +76,10 @@ def map_detections_to_perspective_fen(detections, cell_dict):
             if best_dist > max_r * 1.3:
                 best_cell = None
 
-        # Lookup FEN character
+        # Get FEN character directly from class_name
         cls_name = det.get("class_name")
         cls_id = det.get("class_id")
-        fen_char = (
-            CLASS_NAME_TO_FEN.get(cls_name)
-            or CLASS_NAME_TO_FEN.get(cls_id)
-            or CLASS_NAME_TO_FEN.get(str(cls_id) if cls_id is not None else "")
-        )
+        fen_char = cls_name
 
         if best_cell is not None:
             if fen_char:
@@ -282,6 +272,34 @@ def draw_segmentation_and_lines(image, corners, debug_info):
             cv2.circle(annotated, (int(pt[0]), int(pt[1])), 8, (0, 255, 255), 2)
 
     return annotated
+
+
+def create_board_segment_visualizer(seg_img_bgr, extracted_sq_bgr, img_name):
+    """Create a 1x2 composite visualizer image showing board segmentation and extracted squares."""
+    seg_img_rgb = cv2.cvtColor(seg_img_bgr, cv2.COLOR_BGR2RGB)
+    extracted_sq_rgb = cv2.cvtColor(extracted_sq_bgr, cv2.COLOR_BGR2RGB)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6), dpi=120)
+    fig.suptitle(
+        f"Chessboard Segmentation Pipeline: {img_name}",
+        fontsize=11, fontweight="bold", y=0.98
+    )
+
+    # Panel 1: Segmentation & RANSAC Lines
+    axes[0].set_title("1. Segmentation & RANSAC Lines", fontsize=11, fontweight="bold", pad=8)
+    axes[0].imshow(seg_img_rgb)
+    axes[0].axis("off")
+
+    # Panel 2: Extracted Squares
+    axes[1].set_title("2. Extracted Squares", fontsize=11, fontweight="bold", pad=8)
+    axes[1].imshow(extracted_sq_rgb)
+    axes[1].axis("off")
+
+    plt.tight_layout()
+    composite_rgb = canvas_to_numpy_rgb(fig)
+    plt.close(fig)
+
+    return composite_rgb
 
 
 def create_2x2_visualizer(seg_img_bgr, extracted_sq_bgr, bbox_bgr, board_2d_rgb, img_name, fen_str):
