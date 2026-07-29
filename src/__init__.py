@@ -5,7 +5,7 @@ from src.board_segmentor import (
     draw_extracted_squares,
     extract_chessboard_perspective,
 )
-from src.dataset import ChessREDDataset, ChessREDTrainer, ChessREDValidator
+# from src.dataset import ChessREDDataset, ChessREDTrainer, ChessREDValidator
 
 __all__ = [
     "BoardSegmentor",

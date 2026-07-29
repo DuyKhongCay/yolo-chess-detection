@@ -109,29 +109,49 @@ def _extract_initial_4_corners(polygon_points: np.ndarray) -> np.ndarray:
         approx = cv2.approxPolyDP(hull, eps_factor * peri, True)
         if len(approx) == 4 and cv2.isContourConvex(approx):
             corners = approx.reshape(4, 2)
-            return order_corners(corners, ordering="clockwise")
+            return _sort_corners_by_polar_angle(corners)
 
-    # Fallback to 4 extreme points
-    sums = pts.sum(axis=1)
-    diffs = np.diff(pts, axis=1).flatten()
-    tl = pts[np.argmin(sums)]
-    br = pts[np.argmax(sums)]
-    tr = pts[np.argmin(diffs)]
-    bl = pts[np.argmax(diffs)]
-    return np.float32([tl, tr, br, bl])
+    # Fallback: pick 4 extreme hull vertices using centroid + polar angle ordering.
+    # This avoids the sum/diff method which fails on perspective-angled boards.
+    hull_pts = hull.reshape(-1, 2).astype(np.float32)
+    centroid = hull_pts.mean(axis=0)
+    angles = np.arctan2(hull_pts[:, 1] - centroid[1], hull_pts[:, 0] - centroid[0])
+    # Sample 4 points at roughly 0, 90, 180, 270 degree intervals
+    target_angles = [-np.pi, -np.pi / 2, 0.0, np.pi / 2]
+    extreme_pts = []
+    for target in target_angles:
+        diffs_angle = np.abs(angles - target)
+        diffs_angle = np.minimum(diffs_angle, 2 * np.pi - diffs_angle)
+        extreme_pts.append(hull_pts[np.argmin(diffs_angle)])
+    return _sort_corners_by_polar_angle(np.array(extreme_pts, dtype=np.float32))
+
+
+def _sort_corners_by_polar_angle(corners: np.ndarray) -> np.ndarray:
+    """Sort 4 corners clockwise [TL, TR, BR, BL] using centroid and polar angle.
+
+    Robust for any camera angle / perspective, unlike sum/diff which breaks on rotated boards.
+    """
+    pts = corners.astype(np.float32)
+    centroid = pts.mean(axis=0)
+    angles = np.arctan2(pts[:, 1] - centroid[1], pts[:, 0] - centroid[0])
+    # Rotate so that the "top-left" quadrant starts at -135 degrees
+    angles = (angles - (-3 * np.pi / 4)) % (2 * np.pi)
+    order = np.argsort(angles)
+    sorted_pts = pts[order]  # clockwise from top-left
+    return sorted_pts
 
 
 def _extract_4_edge_lines_ransac(
-    polygon_points: np.ndarray, threshold: float = 5.0, max_iters: int = 1000
+    polygon_points: np.ndarray, threshold: float = 10.0, max_iters: int = 1000
 ) -> Tuple[List[Tuple[float, float, float, float]], np.ndarray]:
-    """Partition polygon points into 4 edge clusters and fit 4 RANSAC lines.
+    """Partition polygon contour into 4 edge clusters and fit 4 RANSAC lines.
 
-    Returns:
-        List of 4 fitted vector lines [Top, Right, Bottom, Left] and initial 4 corners.
+    Uses contour perimeter splitting instead of geometric distance assignment
+    to correctly partition points on perspective-angled boards.
     """
     init_corners = _extract_initial_4_corners(polygon_points)
 
-    # 4 perimeter segments: TL->TR, TR->BR, BR->BL, BL->TL
+    # 4 perimeter segments for fallback: TL->TR, TR->BR, BR->BL, BL->TL
     segments = [
         (init_corners[0], init_corners[1]),
         (init_corners[1], init_corners[2]),
@@ -139,16 +159,40 @@ def _extract_4_edge_lines_ransac(
         (init_corners[3], init_corners[0]),
     ]
 
-    edge_clusters: List[List[np.ndarray]] = [[], [], [], []]
+    # --- Perimeter split clustering ---
+    # Find the index in the contour array closest to each of the 4 corners,
+    # then slice the contour between adjacent corner indices to get 4 clean edge clusters.
+    pts = polygon_points.astype(np.float32)
+    n = len(pts)
+    corner_indices = []
+    for corner in init_corners:
+        dists = np.linalg.norm(pts - corner, axis=1)
+        corner_indices.append(int(np.argmin(dists)))
 
-    # Assign each point to closest edge segment
-    for pt in polygon_points:
-        dists = [_point_to_segment_distance(pt, seg[0], seg[1]) for seg in segments]
-        edge_clusters[int(np.argmin(dists))].append(pt)
+    # Sort corner indices so we can split contour in order
+    corner_indices_sorted = sorted(corner_indices)
+    edge_clusters: List[List[np.ndarray]] = []
+    num_corners = len(corner_indices_sorted)
+    for i in range(num_corners):
+        start = corner_indices_sorted[i]
+        end = corner_indices_sorted[(i + 1) % num_corners]
+        if end > start:
+            cluster = pts[start:end + 1]
+        else:
+            # Wrap-around case
+            cluster = np.concatenate([pts[start:], pts[:end + 1]], axis=0)
+        edge_clusters.append(cluster.tolist())
+
+    # Re-order edge clusters to match [Top, Right, Bottom, Left] based on corner order
+    # The corner at index 0 (TL) -> index 1 (TR) is Top edge, etc.
+    reordered_clusters: List[List[np.ndarray]] = [[], [], [], []]
+    for i in range(4):
+        ci_start = corner_indices_sorted.index(corner_indices[i])
+        reordered_clusters[i] = edge_clusters[ci_start]
 
     lines = []
     for k in range(4):
-        cluster_pts = np.array(edge_clusters[k], dtype=np.float32)
+        cluster_pts = np.array(reordered_clusters[k], dtype=np.float32)
         line = None
         if len(cluster_pts) >= 2:
             line, _ = _best_fit_line_ransac(
@@ -338,7 +382,7 @@ class BoardSegmentor:
         conf_threshold: float = 0.25,
         iou_threshold: float = 0.45,
         imgsz: int = 640,
-        ransac_threshold: float = 5.0,
+        ransac_threshold: float = 10.0,
         ransac_max_iters: int = 1000,
     ):
         """Initialize BoardSegmentor with local YOLO or Roboflow Cloud backend.
