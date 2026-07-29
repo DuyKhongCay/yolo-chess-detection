@@ -1,0 +1,10 @@
+# Roboflow private API key
+api_key: "BBa42pbZMPubiGI6d9XI"
+# Roboflow workspace ID
+workspace: "duykhongcay"
+# Roboflow project ID
+project: "chessred-v18oz"
+model_type: "yolo11"
+model_path: "chess_pieces_detection/pretrained_models"
+weights_filename: "chess_pieces_yolo11.pt"
+version: 2

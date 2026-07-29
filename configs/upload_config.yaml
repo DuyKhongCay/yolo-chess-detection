@@ -1,0 +1,25 @@
+# Upload target destination: "roboflow", "gdrive", or "all"
+target: "gdrive"
+
+# Path to YOLO dataset directory
+dataset_dir: "chess_pieces_detection/datasets/chessred_yolo_format"
+
+roboflow:
+  # Roboflow private API key
+  api_key: "BBa42pbZMPubiGI6d9XI"
+  # Roboflow workspace ID
+  workspace: "duykhongcay"
+  # Roboflow project ID
+  project: "chessred-v18oz"
+  # Upload batch name
+  batch_name: "chessred-yolo-format"
+  # Number of retry attempts for failed uploads
+  num_retries: 3
+
+gdrive:
+  # Google Drive folder ID
+  folder_id: "1rgVUTZk3M3CzsQKSRgz4ReJho3lfJNLK"
+  # Path to Google Drive API Service Account or OAuth credentials JSON file
+  credentials_file: "chess_pieces_detection/configs/credentials.json"
+  # Zip dataset directory before uploading
+  zip_before_upload: true

@@ -8,12 +8,14 @@ import draccus
 from ultralytics import YOLO
 
 from src.board_segmentor import BoardSegmentor, draw_extracted_squares
+from src.object_detector import crop_and_stitch_detections
 from src.result_visualizer import (
     map_detections_to_perspective_fen,
     draw_segmentation_and_lines,
     draw_yolo_detections,
     render_2d_board,
     create_2x2_visualizer,
+    create_board_segment_visualizer,
 )
 
 
@@ -41,6 +43,10 @@ class PredictConfig:
     roboflow_api_key: str = ""
     # Roboflow server API URL
     roboflow_api_url: str = "https://serverless.roboflow.com"
+    # If True, run object detection only and output cropped bbox grid
+    object_detect_only: bool = False
+    # If True, run board segmentation only and output 1x2 visualization (Panels 1 & 2)
+    board_segment_only: bool = False
 
 
 @draccus.wrap()
@@ -51,29 +57,36 @@ def main(cfg: PredictConfig):
     out_dir = Path(cfg.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print("=== Starting Chess Piece Detection & 2x2 Pipeline Visualizer ===")
+    print("=== Starting Chess Piece Detection Visualizer ===")
     print(f"Piece detection model: {model_path}")
-    print(f"Board segmentor mode:  {cfg.seg_source_type} ({cfg.seg_model})")
+    print(f"Object detect only:    {cfg.object_detect_only}")
+    print(f"Board segment only:    {cfg.board_segment_only}")
+    if not cfg.object_detect_only:
+        print(f"Board segmentor mode:  {cfg.seg_source_type} ({cfg.seg_model})")
     print(f"Input source:          {source_path}")
     print(f"Output directory:      {out_dir}")
 
-    # Initialize BoardSegmentor (YOLO Local or Roboflow)
-    if cfg.seg_source_type.lower() == "local":
-        board_segmentor = BoardSegmentor(
-            source_type="local",
-            model_path=Path(cfg.seg_model),
-            device=cfg.device,
-        )
-    else:
-        board_segmentor = BoardSegmentor(
-            source_type="roboflow",
-            model_id=cfg.seg_model if "/" in cfg.seg_model else "chessboard-segmentation/1",
-            api_url=cfg.roboflow_api_url,
-            api_key=cfg.roboflow_api_key,
-        )
+    # Initialize BoardSegmentor only when needed
+    board_segmentor = None
+    if not cfg.object_detect_only:
+        if cfg.seg_source_type.lower() == "local":
+            board_segmentor = BoardSegmentor(
+                source_type="local",
+                model_path=Path(cfg.seg_model),
+                device=cfg.device,
+            )
+        else:
+            board_segmentor = BoardSegmentor(
+                source_type="roboflow",
+                model_id=cfg.seg_model if "/" in cfg.seg_model else "chessboard-segmentation/1",
+                api_url=cfg.roboflow_api_url,
+                api_key=cfg.roboflow_api_key,
+            )
 
-    # Load fine-tuned YOLO piece detection model
-    yolo_model = YOLO(str(model_path))
+    # Load fine-tuned YOLO piece detection model only when needed
+    yolo_model = None
+    if not cfg.board_segment_only:
+        yolo_model = YOLO(str(model_path))
 
     # Resolve list of input image paths
     if source_path.is_file():
@@ -99,23 +112,32 @@ def main(cfg: PredictConfig):
             print(f"Warning: Failed to load image {img_file}")
             continue
 
-        # Step 1: Segmentation & Perspective transformation & 64 chessboard squares extraction
-        corners, debug_info = board_segmentor.segment_board(raw_bgr)
-        if corners is None:
-            print(f"Warning: Board Segmentor failed to detect chessboard corners in {img_file.name}")
+        # Board segment only mode: run segmentation & 64-square extraction only
+        if cfg.board_segment_only:
+            corners, debug_info = board_segmentor.segment_board(raw_bgr)
+            if corners is None:
+                print(f"Warning: Board Segmentor failed to detect chessboard corners in {img_file.name}")
+                continue
+
+            warped_board, M, M_inv, sq_orig, cell_dict = board_segmentor.extract_chessboard_perspective(
+                raw_bgr, corners=corners
+            )
+            if cell_dict is None:
+                print(f"Warning: Board Segmentor failed to extract chessboard perspective in {img_file.name}")
+                continue
+
+            seg_lines_bgr = draw_segmentation_and_lines(raw_bgr, corners, debug_info)
+            extracted_sq_bgr = draw_extracted_squares(raw_bgr, cell_dict)
+
+            visualizer_rgb = create_board_segment_visualizer(
+                seg_lines_bgr, extracted_sq_bgr, img_file.name
+            )
+            save_img_path = out_dir / f"board_segmentation_{img_file.stem}.png"
+            Image.fromarray(visualizer_rgb).save(save_img_path)
+            print(f"  Saved board segment visualizer to: {save_img_path}")
             continue
 
-        warped_board, M, M_inv, sq_orig, cell_dict = board_segmentor.extract_chessboard_perspective(
-            raw_bgr, corners=corners
-        )
-        if cell_dict is None:
-            print(f"Warning: Board Segmentor failed to extract chessboard perspective in {img_file.name}")
-            continue
-
-        seg_lines_bgr = draw_segmentation_and_lines(raw_bgr, corners, debug_info)
-        extracted_sq_bgr = draw_extracted_squares(raw_bgr, cell_dict)
-
-        # Step 2: YOLO piece detection
+        # Step: YOLO piece detection
         results = yolo_model.predict(
             source=str(img_file),
             imgsz=cfg.imgsz,
@@ -132,13 +154,37 @@ def main(cfg: PredictConfig):
                 xyxy = box.xyxy[0].cpu().numpy()
                 conf = float(box.conf[0].cpu().numpy())
                 cls_id = int(box.cls[0].cpu().numpy())
-                cls_name = names.get(cls_id, f"class_{cls_id}")
+                cls_name = str(names.get(cls_id, f"class_{cls_id}"))
                 detections.append({
                     "box": xyxy,
                     "conf": conf,
                     "class_id": cls_id,
                     "class_name": cls_name,
                 })
+
+        # Object detect only mode: crop & stitch detected bboxes
+        if cfg.object_detect_only:
+            stitched_bgr = crop_and_stitch_detections(raw_bgr, detections)
+            save_crop_path = out_dir / f"object_detection_crops_{img_file.stem}.png"
+            cv2.imwrite(str(save_crop_path), stitched_bgr)
+            print(f"  Saved cropped detections grid to: {save_crop_path}")
+            continue
+
+        # Step 1: Segmentation & Perspective transformation & 64 chessboard squares extraction
+        corners, debug_info = board_segmentor.segment_board(raw_bgr)
+        if corners is None:
+            print(f"Warning: Board Segmentor failed to detect chessboard corners in {img_file.name}")
+            continue
+
+        warped_board, M, M_inv, sq_orig, cell_dict = board_segmentor.extract_chessboard_perspective(
+            raw_bgr, corners=corners
+        )
+        if cell_dict is None:
+            print(f"Warning: Board Segmentor failed to extract chessboard perspective in {img_file.name}")
+            continue
+
+        seg_lines_bgr = draw_segmentation_and_lines(raw_bgr, corners, debug_info)
+        extracted_sq_bgr = draw_extracted_squares(raw_bgr, cell_dict)
 
         # Step 3: Draw YOLO bounding boxes and base reference points
         bbox_bgr = draw_yolo_detections(raw_bgr, detections)
@@ -166,7 +212,7 @@ def main(cfg: PredictConfig):
         print(f"  Saved visualizer to: {save_img_path}")
         print(f"  Saved FEN string to: {save_fen_path}")
 
-    print("\n=== Inference & 2x2 Grid Visualization Pipeline Completed ===")
+    print("\n=== Inference Pipeline Completed ===")
 
 
 if __name__ == "__main__":

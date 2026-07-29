@@ -1,4 +1,5 @@
 # Inference configuration for chess piece detection, perspective transformation, and 2x2 visualization using Draccus
+<<<<<<< HEAD
 source: ../ros2_ws/debug_left.jpg
 # model: AI_Chess/runs/detect/train4/weights/best.pt
 model: chess_pieces_detection/best.pt
@@ -11,5 +12,21 @@ device: 'cpu'
 seg_source_type: "local"
 seg_model: chess_pieces_detection/pretrained_models/chess_board_yolo11.pt
 # seg_model: "chessboard-segmentation/1"
+=======
+source: "chess_pieces_detection/runs/debug_right_.jpg"
+# model: AI_Chess/runs/detect/train4/weights/best.pt
+model: chess_pieces_detection/runs/chess_detection_yolo11n/weights/best.pt
+output_dir: chess_pieces_detection/runs/predict
+conf: 0.3
+iou: 0.7
+imgsz: 640
+device: '0'
+object_detect_only: false
+board_segment_only: true
+# Board Segmentor Configuration
+seg_source_type: "local"
+seg_model: chess_pieces_detection/runs/chessboard_yolo8n-seg-4/weights/best.pt
+# seg_model: ""
+>>>>>>> 273af532f9abdd2e7b7febb6e0cc1182e91f8ee2
 # roboflow_api_key: "qlW2c4LOJkr0NkVrdkYH"
 # roboflow_api_url: "https://serverless.roboflow.com"
