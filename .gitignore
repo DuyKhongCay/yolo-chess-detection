@@ -1,5 +1,9 @@
 *.pt
 
+configs/token.json
+configs/credentials.json
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
