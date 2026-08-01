@@ -1,4 +1,4 @@
-*.pt
+/pretrained_models
 
 configs/token.json
 configs/credentials.json
@@ -116,7 +116,7 @@ ipython_config.py
 /ignore
 
 # datasets
-/datasets
+/datasets/chessred_yolo_format
 
 #   commonly ignored for libraries.
 uv.lock
@@ -151,7 +151,7 @@ dmypy.json
 .pyre/
 
 # datasets and projects (ignore /datasets dir at root only to allow for docs/en/datasets dir)
-/runs
+/runs/predict
 wandb/
 .DS_Store
 
