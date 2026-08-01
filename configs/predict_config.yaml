@@ -1,14 +1,14 @@
 # Inference configuration for chess piece detection, perspective transformation, and 2x2 visualization using Draccus
-source: "chess_pieces_detection/runs/debug_right_.jpg"
+source: "chess_pieces_detection/runs/image.jpg"
 # model: AI_Chess/runs/detect/train4/weights/best.pt
 model: chess_pieces_detection/runs/chess_detection_yolo11n/weights/best.pt
 output_dir: chess_pieces_detection/runs/predict
-conf: 0.3
-iou: 0.7
-imgsz: 640
+conf: 0.25
+iou: 0.65
+imgsz: 1024
 device: '0'
-object_detect_only: false
-board_segment_only: true
+object_detect_only: true
+board_segment_only: false
 # Board Segmentor Configuration
 seg_source_type: "local"
 seg_model: chess_pieces_detection/runs/chessboard_yolo8n-seg-4/weights/best.pt
