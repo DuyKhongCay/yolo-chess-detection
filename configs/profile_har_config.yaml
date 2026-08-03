@@ -1,0 +1,4 @@
+# Profiler configuration for Hailo HAR model using Draccus
+har: "runs/chess_detection_yolo11n/weights/best_hailo_model/best.har"
+target: "hailo8"
+output_dir: "runs/chess_detection_yolo11n/weights/best_hailo_model/profiler_output"

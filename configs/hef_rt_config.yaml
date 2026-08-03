@@ -1,0 +1,4 @@
+# Hailo NPU Runtime Benchmark configuration using Draccus
+hef: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n/weights/best_hailo_model/best.hef"
+iterations: 200
+warmup: 20
