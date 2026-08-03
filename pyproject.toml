@@ -26,6 +26,9 @@ chess-download = "scripts.chessred_download:download_chessred"
 chess-train = "scripts.train:train"
 chess-evaluate = "scripts.evaluate:evaluate"
 chess-predict = "scripts.predict:main"
+chess-profile-har = "scripts.profile_har:profile_har_model"
+chess-measure-hef = "scripts.measure_hef_runtime:measure_hef_runtime"
+
 
 [tool.setuptools.packages.find]
 where = ["."]
