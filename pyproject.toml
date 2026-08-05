@@ -9,23 +9,41 @@ description = "Chess piece detection, perspective transformation, and FEN genera
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-    "ultralytics>=8.3.0",
     "opencv-python>=4.8.0",
     "pandas>=2.0.0",
-    "torch>=2.0.0",
-    "torchvision>=0.15.0",
     "pillow>=10.0.0",
     "pyyaml>=6.0",
-    "numpy>=1.24.0",
+    "numpy==1.26.4",
     "tqdm>=4.65.0",
     "draccus>=0.8.0",
 ]
+
+
+[project.optional-dependencies]
+# Training dependencies for YOLOv11 model (Kaggle/Colab/Training PC)
+train = [
+    "ultralytics>=8.3.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+]
+
+# Hailo Dataflow Compiler (DFC) dependencies for x86 Host PC (Model compilation & optimization)
+dfc = [
+    "tensorflow[and-cuda]==2.18.0",
+    "keras==3.5.0",
+    "flatbuffers==24.3.25",
+    "protobuf==3.20.3",
+]
+
+
 
 [project.scripts]
 chess-download = "scripts.chessred_download:download_chessred"
 chess-train = "scripts.train:train"
 chess-evaluate = "scripts.evaluate:evaluate"
 chess-predict = "scripts.predict:main"
+chess-export-onnx = "scripts.export_onnx:main"
+chess-optimize-dfc = "scripts.optimize_dfc:main"
 chess-profile-har = "scripts.profile_har:profile_har_model"
 chess-measure-hef = "scripts.measure_hef_runtime:measure_hef_runtime"
 

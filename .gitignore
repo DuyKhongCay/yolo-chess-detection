@@ -3,6 +3,9 @@
 configs/token.json
 configs/credentials.json
 
+/logs
+
+*.dat
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -116,7 +119,7 @@ ipython_config.py
 /ignore
 
 # datasets
-/datasets/chessred_yolo_format
+/datasets/*
 
 #   commonly ignored for libraries.
 uv.lock

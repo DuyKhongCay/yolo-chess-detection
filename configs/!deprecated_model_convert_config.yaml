@@ -1,0 +1,15 @@
+# Configuration for model conversion script using Draccus
+model: "chess_pieces_detection/runs/chess_detection_yolo11n-2/weights/best.pt"
+dataset: "/home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/rbflow_chesspieces_dataset/data.yaml"
+imgsz: 640
+method: "dfc"
+name: "hailo8"
+base_dnn: "yolo11n"
+output_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_chesspieces_detect"
+calib_count: 1024
+use_memmap: true
+optimize_level: 2
+compress_level: 0
+model_script: "model_optimization_flavor(batch_size=1)\n"
+device: "0"
+log_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/logs"

@@ -1,0 +1,33 @@
+# Base image standard with CUDA 11.8 and cuDNN 8 (fully compatible with Hailo DFC & TensorFlow)
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+
+# Prevent interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install Python 3.10 and basic system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    python3.10-dev \
+    git \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
+    && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+
+WORKDIR /workspace
+
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install PyTorch cu118 explicitly to prevent CUDA version mismatch with Hailo SDK
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# Copy wheel and install Hailo Dataflow Compiler inside Docker image
+COPY hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl /tmp/
+RUN pip install --no-cache-dir /tmp/hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl \
+    && rm /tmp/hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl

@@ -1,0 +1,39 @@
+description: Ultralytics YOLO11n model trained on /kaggle/working/ChessRed-4/data.yaml
+author: Ultralytics
+date: '2026-08-01T23:10:40.971517+07:00'
+version: 8.4.114
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+head: Detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: B
+  1: K
+  2: N
+  3: P
+  4: Q
+  5: R
+  6: b
+  7: k
+  8: n
+  9: p
+  10: q
+  11: r
+args:
+  data: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/chessred_yolo_dataset/data.yaml
+  name: hailo8
+  fraction: 1.0
+  conf: null
+  iou: 0.7
+  quantize: 8
+  simplify: true
+channels: 3
+end2end: false
+hailo_arch: hailo8
+nms: true
+semantic_baked: false
