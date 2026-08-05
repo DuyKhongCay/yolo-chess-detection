@@ -1,0 +1,8 @@
+# Hailo NPU Runtime Benchmark configuration using Draccus
+hef: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_chesspieces_detect/yolo11n_hailo8.hef"
+har: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_chesspieces_detect/yolo11n_hailo8.har"
+runtime_data: runtime_data_yolo11n.json
+iterations: 200
+warmup: 20
+generate_html_report: true
+output_html: "runtime_profiler.html"
