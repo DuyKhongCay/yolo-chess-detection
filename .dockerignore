@@ -1,0 +1,11 @@
+.git
+.gitignore
+runs
+datasets
+pretrained_models
+hailo_env
+logs
+*.dat
+*.onnx
+*.hef
+*.har
