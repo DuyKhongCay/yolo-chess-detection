@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 import draccus
 from hailo_sdk_client import ClientRunner
 
@@ -10,24 +11,24 @@ from hailo_sdk_client import ClientRunner
 class ProfileHarConfig:
     """Dataclass configuration for HAR model profiling."""
 
-    har: str = "runs/chess_detection_yolo11n/weights/best_hailo_model/best.har"
+    har: str = ""
     target: str = "hailo8"
-    output_dir: str = "runs/chess_detection_yolo11n/weights/best_hailo_model/profiler_output"
+    output_dir: str = ""
 
 
 @draccus.wrap()
 def profile_har_model(cfg: ProfileHarConfig):
     """Profile HAR model using Hailo DFC API and export full performance metrics."""
-    har_path = Path(cfg.har)
-    output_path = Path(cfg.output_dir)
+    har_path = Path(cfg.har).resolve()
+    output_path = Path(cfg.output_dir).resolve() if cfg.output_dir else har_path.parent
     output_path.mkdir(parents=True, exist_ok=True)
 
     print(f"Profiling HAR model: {har_path} for target architecture: {cfg.target}...")
 
-    runner = ClientRunner(har_path=str(har_path))
+    runner = ClientRunner(hw_arch=cfg.target, har=str(har_path))
 
-    # Run full profiler analysis
-    profile_report = runner.profile(target=cfg.target)
+    # Run full profiler analysis via Python SDK
+    profile_report = runner.profile()
 
     # Export text summary report
     report_txt = output_path / "profiler_summary.txt"
@@ -35,13 +36,15 @@ def profile_har_model(cfg: ProfileHarConfig):
         f.write(str(profile_report))
     print(f"Profiler summary report saved to: {report_txt}")
 
-    # Generate interactive HTML report
+    # Generate interactive HTML report using Hailo profiler CLI
+    # (Matches '!hailo profiler {har_path}' in DFC tutorial notebook)
     try:
-        html_report_path = output_path / "profiler_report.html"
-        runner.generate_profiler_html_report(output_path=str(html_report_path))
-        print(f"Interactive HTML profiler report saved to: {html_report_path}")
-    except AttributeError:
-        print("Note: Profiler report generation completed via runner.profile().")
+        cmd = ["hailo", "profiler", str(har_path)]
+        print(f"Running Hailo profiler CLI: {' '.join(cmd)}")
+        subprocess.run(cmd, cwd=str(output_path), check=True)
+        print(f"Interactive HTML profiler report generated in: {output_path}")
+    except Exception as e:
+        print(f"Warning: Failed to generate profiler HTML report via CLI: {e}")
 
 
 if __name__ == "__main__":
