@@ -1,5 +1,11 @@
 """Inference script for chess piece detection, FEN generation, perspective transformation, and 4-panel 2x2 visualization."""
 
+import os
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+import matplotlib
+matplotlib.use("Agg")
+
 from dataclasses import dataclass
 from pathlib import Path
 import cv2
