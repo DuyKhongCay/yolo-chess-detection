@@ -8,7 +8,7 @@ from hailo_sdk_client import ClientRunner
 
 
 @dataclass
-class ProfileHarConfig:
+class ProfileHailoConfig:
     """Dataclass configuration for HAR model profiling."""
 
     har: str = ""
@@ -17,7 +17,7 @@ class ProfileHarConfig:
 
 
 @draccus.wrap()
-def profile_har_model(cfg: ProfileHarConfig):
+def profile_hailo_model(cfg: ProfileHailoConfig):
     """Profile HAR model using Hailo DFC API and export full performance metrics."""
     har_path = Path(cfg.har).resolve()
     output_path = Path(cfg.output_dir).resolve() if cfg.output_dir else har_path.parent
@@ -48,4 +48,4 @@ def profile_har_model(cfg: ProfileHarConfig):
 
 
 if __name__ == "__main__":
-    profile_har_model()
+    profile_hailo_model()
