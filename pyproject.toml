@@ -45,8 +45,6 @@ chess-evaluate = "scripts.evaluate:evaluate"
 chess-predict = "scripts.predict:main"
 chess-export-onnx = "scripts.export_onnx:main"
 chess-optimize-dfc = "scripts.optimize_dfc:main"
-chess-profile-hailo = "scripts.profile_har:profile_hailo_model"
-chess-measure-hef = "scripts.measure_hef_runtime:measure_hef_runtime"
 
 
 [tool.setuptools.packages.find]

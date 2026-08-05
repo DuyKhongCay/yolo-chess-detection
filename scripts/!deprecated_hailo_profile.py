@@ -14,6 +14,7 @@ class ProfileHailoConfig:
     har: str = ""
     target: str = "hailo8"
     output_dir: str = ""
+    runtime_data: str = ""
 
 
 @draccus.wrap()
