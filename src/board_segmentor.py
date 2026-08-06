@@ -256,7 +256,7 @@ def _line_intersection(
 # ---------------------------------------------------------------------------
 
 def order_corners(pts: np.ndarray, ordering: str = "standard") -> np.ndarray:
-    """Order 4 corner points into standard sequence.
+    """Order 4 corner points using robust polar angle sorting.
 
     Args:
         pts: 4 corner points array of shape (4, 2).
@@ -268,17 +268,13 @@ def order_corners(pts: np.ndarray, ordering: str = "standard") -> np.ndarray:
         Ordered float32 corners of shape (4, 2).
     """
     pts_arr = np.array(pts, dtype=np.float32).reshape(4, 2)
-    sums = pts_arr.sum(axis=1)
-    diffs = np.diff(pts_arr, axis=1)
-
-    top_left = pts_arr[np.argmin(sums)]
-    bottom_right = pts_arr[np.argmax(sums)]
-    top_right = pts_arr[np.argmin(diffs)]
-    bottom_left = pts_arr[np.argmax(diffs)]
+    cw_pts = _sort_corners_by_polar_angle(pts_arr)  # [TL, TR, BR, BL]
 
     if ordering == "clockwise":
-        return np.float32([top_left, top_right, bottom_right, bottom_left])
-    return np.float32([top_left, top_right, bottom_left, bottom_right])
+        return cw_pts
+    # "standard": [TL, TR, BL, BR]
+    return np.float32([cw_pts[0], cw_pts[1], cw_pts[3], cw_pts[2]])
+
 
 
 def extract_chessboard_perspective(
