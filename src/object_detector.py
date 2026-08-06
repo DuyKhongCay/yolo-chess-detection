@@ -4,10 +4,20 @@ from typing import Any, Dict, List
 import cv2
 import numpy as np
 
-# FEN character class names mapping for chess piece detection
+# FEN character class names mapping for chess piece detection (0..5: Black pieces, 6..11: White pieces)
 FEN_CLASS_NAMES = {
-    0: "B", 1: "K", 2: "N", 3: "P", 4: "Q", 5: "R",
-    6: "b", 7: "k", 8: "n", 9: "p", 10: "q", 11: "r"
+    0: "B",
+    1: "K",
+    2: "N",
+    3: "P",
+    4: "Q",
+    5: "R",
+    6: "b",
+    7: "k",
+    8: "n",
+    9: "p",
+    10: "q",
+    11: "r",
 }
 
 
@@ -60,7 +70,7 @@ class ChessPieceDetector:
         self.hef = HEF(str(self.model_path))
         self.vdevice = VDevice()
         configure_params = ConfigureParams.create_from_hef(self.hef, interface=HailoStreamInterface.PCIe)
-        self.network_group = self.vdevice.configure(configure_params)[0]
+        self.network_group = self.vdevice.configure(self.hef, configure_params)[0]
         self.network_group_params = self.network_group.create_params()
 
         self.input_info = self.hef.get_input_vstream_infos()[0]
@@ -108,7 +118,8 @@ class ChessPieceDetector:
 
         img_h, img_w = image_bgr.shape[:2]
         target_h, target_w = self.input_info.shape[0], self.input_info.shape[1]
-        resized_img = cv2.resize(image_bgr, (target_w, target_h))
+        rgb_img = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        resized_img = cv2.resize(rgb_img, (target_w, target_h))
         input_data = {self.input_info.name: np.expand_dims(resized_img, axis=0)}
 
         with InferVStreams(self.network_group, self.input_params, self.output_params) as infer_pipeline:
@@ -117,9 +128,19 @@ class ChessPieceDetector:
 
         detections = []
         for out_name, out_tensor in raw_outputs.items():
-            tensor_data = np.squeeze(out_tensor)
-            if tensor_data.ndim == 2 and tensor_data.shape[1] == 6:
-                for row in tensor_data:
+            # Hailo NMS outputs per-class list of detections (batch, num_classes)
+            class_list = out_tensor[0] if isinstance(out_tensor, list) and len(out_tensor) > 0 and isinstance(out_tensor[0], list) else out_tensor
+
+            for cls_id, cls_boxes in enumerate(class_list):
+                cls_boxes_arr = np.asarray(cls_boxes)
+                if cls_boxes_arr.size == 0:
+                    continue
+                if cls_boxes_arr.ndim == 1:
+                    cls_boxes_arr = np.expand_dims(cls_boxes_arr, axis=0)
+
+                for row in cls_boxes_arr:
+                    if len(row) < 5:
+                        continue
                     c_val = float(row[4])
                     if c_val < self.conf:
                         continue
@@ -138,9 +159,7 @@ class ChessPieceDetector:
                         xmax_px = xmax * scale_x
                         ymax_px = ymax * scale_y
 
-                    cls_id = int(row[5])
                     cls_name = FEN_CLASS_NAMES.get(cls_id, f"class_{cls_id}")
-
                     detections.append({
                         "box": np.array([xmin_px, ymin_px, xmax_px, ymax_px]),
                         "conf": c_val,
