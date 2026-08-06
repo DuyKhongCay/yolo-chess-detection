@@ -11,10 +11,9 @@ from pathlib import Path
 import cv2
 from PIL import Image
 import draccus
-from ultralytics import YOLO
 
 from src.board_segmentor import BoardSegmentor, draw_extracted_squares
-from src.object_detector import crop_and_stitch_detections
+from src.object_detector import ChessPieceDetector, crop_and_stitch_detections
 from src.result_visualizer import (
     map_detections_to_perspective_fen,
     draw_segmentation_and_lines,
@@ -22,6 +21,7 @@ from src.result_visualizer import (
     render_2d_board,
     create_2x2_visualizer,
     create_board_segment_visualizer,
+    create_object_detection_visualizer,
 )
 
 
@@ -89,10 +89,16 @@ def main(cfg: PredictConfig):
                 api_key=cfg.roboflow_api_key,
             )
 
-    # Load fine-tuned YOLO piece detection model only when needed
-    yolo_model = None
+    # Load piece detection model (.pt or .hef) only when needed
+    piece_detector = None
     if not cfg.board_segment_only:
-        yolo_model = YOLO(str(model_path))
+        piece_detector = ChessPieceDetector(
+            model_path=model_path,
+            imgsz=cfg.imgsz,
+            conf=cfg.conf,
+            iou=cfg.iou,
+            device=cfg.device,
+        )
 
     # Resolve list of input image paths
     if source_path.is_file():
@@ -143,37 +149,19 @@ def main(cfg: PredictConfig):
             print(f"  Saved board segment visualizer to: {save_img_path}")
             continue
 
-        # Step: YOLO piece detection
-        results = yolo_model.predict(
-            source=str(img_file),
-            imgsz=cfg.imgsz,
-            conf=cfg.conf,
-            iou=cfg.iou,
-            device=cfg.device,
-            verbose=False,
-        )[0]
+        # Step: Piece detection inference (.pt or .hef)
+        detections = piece_detector.predict(raw_bgr)
 
-        detections = []
-        names = results.names
-        if results.boxes is not None:
-            for box in results.boxes:
-                xyxy = box.xyxy[0].cpu().numpy()
-                conf = float(box.conf[0].cpu().numpy())
-                cls_id = int(box.cls[0].cpu().numpy())
-                cls_name = str(names.get(cls_id, f"class_{cls_id}"))
-                detections.append({
-                    "box": xyxy,
-                    "conf": conf,
-                    "class_id": cls_id,
-                    "class_name": cls_name,
-                })
-
-        # Object detect only mode: crop & stitch detected bboxes
+        # Object detect only mode: draw bboxes + crop & stitch detected bboxes composite visualizer
         if cfg.object_detect_only:
+            bbox_bgr = draw_yolo_detections(raw_bgr, detections)
             stitched_bgr = crop_and_stitch_detections(raw_bgr, detections)
-            save_crop_path = out_dir / f"object_detection_crops_{img_file.stem}.png"
-            cv2.imwrite(str(save_crop_path), stitched_bgr)
-            print(f"  Saved cropped detections grid to: {save_crop_path}")
+            visualizer_rgb = create_object_detection_visualizer(
+                bbox_bgr, stitched_bgr, img_file.name
+            )
+            save_crop_path = out_dir / f"object_detection_{img_file.stem}.png"
+            Image.fromarray(visualizer_rgb).save(save_crop_path)
+            print(f"  Saved object detection visualizer to: {save_crop_path}")
             continue
 
         # Step 1: Segmentation & Perspective transformation & 64 chessboard squares extraction

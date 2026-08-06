@@ -353,6 +353,34 @@ def create_2x2_visualizer(seg_img_bgr, extracted_sq_bgr, bbox_bgr, board_2d_rgb,
     return composite_rgb
 
 
+def create_object_detection_visualizer(bbox_bgr: np.ndarray, stitched_bgr: np.ndarray, img_name: str) -> np.ndarray:
+    """Create a 1x2 composite visualizer image showing bounding box detections and cropped objects grid."""
+    bbox_rgb = cv2.cvtColor(bbox_bgr, cv2.COLOR_BGR2RGB)
+    stitched_rgb = cv2.cvtColor(stitched_bgr, cv2.COLOR_BGR2RGB)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6), dpi=120)
+    fig.suptitle(
+        f"Object Detection Pipeline: {img_name}",
+        fontsize=11, fontweight="bold", y=0.98
+    )
+
+    # Panel 1: Original Image with Bounding Boxes
+    axes[0].set_title("1. Piece Bounding Box Detections", fontsize=11, fontweight="bold", pad=8)
+    axes[0].imshow(bbox_rgb)
+    axes[0].axis("off")
+
+    # Panel 2: Cropped Detections Grid
+    axes[1].set_title("2. Cropped Objects Grid", fontsize=11, fontweight="bold", pad=8)
+    axes[1].imshow(stitched_rgb)
+    axes[1].axis("off")
+
+    plt.tight_layout()
+    composite_rgb = canvas_to_numpy_rgb(fig)
+    plt.close(fig)
+
+    return composite_rgb
+
+
 def canvas_to_numpy_rgb(fig):
     """Convert matplotlib figure canvas to a numpy RGB array."""
     fig.canvas.draw()
