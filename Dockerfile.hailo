@@ -15,7 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxext6 \
     build-essential \
+    locales \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure UTF-8 Locale for proper Vietnamese character support
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
     && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
@@ -31,3 +38,13 @@ RUN pip install --no-cache-dir torch torchvision --index-url https://download.py
 COPY hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl /tmp/
 RUN pip install --no-cache-dir /tmp/hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl \
     && rm /tmp/hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl
+
+# Configure custom colored bash prompt (Yellow user@host, Blue directory)
+RUN echo 'export PS1="\[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /root/.bashrc
+
+# Install Graphviz system library and Python package for model visualization
+RUN apt-get update && apt-get install -y --no-install-recommends graphviz \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir graphviz
+
+
