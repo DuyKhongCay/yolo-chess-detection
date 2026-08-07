@@ -80,12 +80,24 @@ def main(cfg: PredictConfig):
     print(f"Input source:          {source_path}")
     print(f"Output directory:      {out_dir}")
 
+    # Initialize shared Hailo NPU VDevice if any model uses .hef
+    shared_vdevice = None
+    is_seg_hef = seg_model_path is not None and seg_model_path.suffix.lower() == ".hef"
+    is_det_hef = model_path is not None and model_path.suffix.lower() == ".hef"
+    if (not cfg.object_detect_only and is_seg_hef) or (not cfg.board_segment_only and is_det_hef):
+        try:
+            from hailo_platform import VDevice
+            shared_vdevice = VDevice()
+        except ImportError:
+            shared_vdevice = None
+
     # Initialize BoardSegmentor only when needed
     board_segmentor = None
     if not cfg.object_detect_only:
         board_segmentor = BoardSegmentor(
             model_path=seg_model_path,
             device=cfg.device,
+            vdevice=shared_vdevice,
         )
 
     # Load piece detection model (.pt or .hef) only when needed
@@ -97,6 +109,7 @@ def main(cfg: PredictConfig):
             conf=cfg.conf,
             iou=cfg.iou,
             device=cfg.device,
+            vdevice=shared_vdevice,
         )
 
     # Resolve list of input image paths

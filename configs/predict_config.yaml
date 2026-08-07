@@ -1,5 +1,5 @@
 # Inference configuration for chess piece detection, perspective transformation, and 2x2 visualization using Draccus
-source: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/output_sharp_1024.png"
+source: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/G000_IMG000_jpg.rf.83adefa53ddc009cc9a7e246182f1ad1.jpg"
 # model: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/yolo11n.hef
 model: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_chesspieces_model-2/yolo11n.hef
 output_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/predict
@@ -10,5 +10,5 @@ device: 'cpu'
 object_detect_only: false
 board_segment_only: false
 # Board Segmentor Configuration
-seg_model: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chessboard_yolo8n-seg/weights/best.pt
+seg_model: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chessboard_yolo8n-seg/hailo_model/yolov8n-seg.hef
 # seg_model: ""
