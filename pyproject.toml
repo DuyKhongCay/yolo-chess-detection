@@ -38,16 +38,12 @@ dfc = [
     "numpy==1.26.4",
 ]
 
-
-
 [project.scripts]
 chess-download = "scripts.chessred_download:download_chessred"
 chess-train = "scripts.train:train"
 chess-evaluate = "scripts.evaluate:evaluate"
 chess-predict = "scripts.predict:main"
-chess-export-onnx = "scripts.export_onnx:main"
-chess-optimize-dfc = "scripts.optimize_dfc:main"
-
+chess-export-hailo = "scripts.export_hailo_model:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
