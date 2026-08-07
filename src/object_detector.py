@@ -31,6 +31,7 @@ class ChessPieceDetector:
         conf: float = 0.25,
         iou: float = 0.45,
         device: str = "cpu",
+        vdevice: Any = None,
     ):
         """Initialize object detector for PyTorch (.pt) or Hailo (.hef) model."""
         self.model_path = Path(model_path)
@@ -38,6 +39,7 @@ class ChessPieceDetector:
         self.conf = conf
         self.iou = iou
         self.device = device
+        self.vdevice = vdevice
         self.is_hef = self.model_path.suffix.lower() == ".hef"
 
         if self.is_hef:
@@ -68,7 +70,8 @@ class ChessPieceDetector:
             ) from e
 
         self.hef = HEF(str(self.model_path))
-        self.vdevice = VDevice()
+        if self.vdevice is None:
+            self.vdevice = VDevice()
         configure_params = ConfigureParams.create_from_hef(self.hef, interface=HailoStreamInterface.PCIe)
         self.network_group = self.vdevice.configure(self.hef, configure_params)[0]
         self.network_group_params = self.network_group.create_params()

@@ -7,7 +7,7 @@ and perspective transformation with 64-square grid extraction.
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -354,6 +354,22 @@ def draw_extracted_squares(image_bgr: np.ndarray, cell_dict: dict) -> np.ndarray
     return annotated
 
 
+def _softmax_np(x: np.ndarray, axis: int = -1) -> np.ndarray:
+    """Compute numerically stable softmax along given axis."""
+    e_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
+    return e_x / np.sum(e_x, axis=axis, keepdims=True)
+
+
+def _decode_dfl_bbox(dfl_tensor: np.ndarray) -> np.ndarray:
+    """Decode DFL tensor (64, H, W) into (4, H, W) distance offsets (left, top, right, bottom)."""
+    h, w = dfl_tensor.shape[1], dfl_tensor.shape[2]
+    dfl_4d = dfl_tensor.reshape(4, 16, h, w)
+    softmax_dfl = _softmax_np(dfl_4d, axis=1)
+    weights = np.arange(16, dtype=np.float32).reshape(1, 16, 1, 1)
+    dfl_dist = np.sum(softmax_dfl * weights, axis=1)
+    return dfl_dist
+
+
 # ---------------------------------------------------------------------------
 # BoardSegmentor class
 # ---------------------------------------------------------------------------
@@ -370,6 +386,7 @@ class BoardSegmentor:
         imgsz: int = 640,
         ransac_threshold: float = 10.0,
         ransac_max_iters: int = 1000,
+        vdevice: Any = None,
     ):
         """Initialize BoardSegmentor for local PyTorch (.pt) or Hailo (.hef) model."""
         self.model_path = Path(model_path) if model_path else None
@@ -379,6 +396,7 @@ class BoardSegmentor:
         self.device = device
         self.ransac_threshold = ransac_threshold
         self.ransac_max_iters = ransac_max_iters
+        self.vdevice = vdevice
 
         self.is_hef = self.model_path is not None and self.model_path.suffix.lower() == ".hef"
         self._local_model = None
@@ -412,7 +430,8 @@ class BoardSegmentor:
             ) from e
 
         self.hef = HEF(str(self.model_path))
-        self.vdevice = VDevice()
+        if self.vdevice is None:
+            self.vdevice = VDevice()
         configure_params = ConfigureParams.create_from_hef(self.hef, interface=HailoStreamInterface.PCIe)
         self.network_group = self.vdevice.configure(self.hef, configure_params)[0]
         self.network_group_params = self.network_group.create_params()
@@ -424,7 +443,7 @@ class BoardSegmentor:
         self.output_params = OutputVStreamParams.make(self.network_group, quantized=False)
 
     def _predict_hef(self, image_bgr: np.ndarray) -> List[np.ndarray]:
-        """Run Hailo NPU inference for segmentation model."""
+        """Run Hailo NPU inference for segmentation model and decode raw tensors or Hailo NMS layer."""
         from hailo_platform import InferVStreams
 
         img_h, img_w = image_bgr.shape[:2]
@@ -437,47 +456,205 @@ class BoardSegmentor:
             with self.network_group.activate(self.network_group_params):
                 raw_outputs = infer_pipeline.infer(input_data)
 
-        polygons = []
+        # Check if outputs contain Hailo NMS postprocessing layer
+        is_nms_output = any("nms" in name.lower() for name in raw_outputs.keys())
+
+        if is_nms_output:
+            polygons = []
+            for out_name, out_tensor in raw_outputs.items():
+                class_list = out_tensor[0] if isinstance(out_tensor, list) and len(out_tensor) > 0 and isinstance(out_tensor[0], list) else out_tensor
+
+                for cls_id, cls_boxes in enumerate(class_list):
+                    cls_boxes_arr = np.asarray(cls_boxes)
+                    if cls_boxes_arr.size == 0:
+                        continue
+                    if cls_boxes_arr.ndim == 1:
+                        cls_boxes_arr = np.expand_dims(cls_boxes_arr, axis=0)
+
+                    for row in cls_boxes_arr:
+                        if len(row) < 5:
+                            continue
+                        c_val = float(row[4])
+                        if c_val < self.conf_threshold:
+                            continue
+
+                        ymin, xmin, ymax, xmax = float(row[0]), float(row[1]), float(row[2]), float(row[3])
+                        if max(ymin, xmin, ymax, xmax) <= 1.01:
+                            xmin_px = xmin * img_w
+                            ymin_px = ymin * img_h
+                            xmax_px = xmax * img_w
+                            ymax_px = ymax * img_h
+                        else:
+                            scale_x = img_w / target_w
+                            scale_y = img_h / target_h
+                            xmin_px = xmin * scale_x
+                            ymin_px = ymin * scale_y
+                            xmax_px = xmax * scale_x
+                            ymax_px = ymax * scale_y
+
+                        poly = np.array([
+                            [xmin_px, ymin_px],
+                            [xmax_px, ymin_px],
+                            [xmax_px, ymax_px],
+                            [xmin_px, ymax_px]
+                        ], dtype=np.float32)
+                        polygons.append(poly)
+
+            return polygons
+
+        # Decode raw YOLOv8-seg 10 output tensors
+        layers_map = {
+            "cv2": {},
+            "cv3": {},
+            "cv4": {},
+            "proto": None,
+        }
+
         for out_name, out_tensor in raw_outputs.items():
-            class_list = out_tensor[0] if isinstance(out_tensor, list) and len(out_tensor) > 0 and isinstance(out_tensor[0], list) else out_tensor
+            arr = np.squeeze(np.asarray(out_tensor))
+            if arr.ndim == 3:
+                if arr.shape[0] not in (64, 32, 1) and arr.shape[2] in (64, 32, 1):
+                    arr = np.transpose(arr, (2, 0, 1))
 
-            for cls_id, cls_boxes in enumerate(class_list):
-                cls_boxes_arr = np.asarray(cls_boxes)
-                if cls_boxes_arr.size == 0:
-                    continue
-                if cls_boxes_arr.ndim == 1:
-                    cls_boxes_arr = np.expand_dims(cls_boxes_arr, axis=0)
+            if "proto" in out_name:
+                layers_map["proto"] = arr
+            else:
+                for stride, grid_size in [(8, 80), (16, 40), (32, 20)]:
+                    s_idx = 0 if stride == 8 else (1 if stride == 16 else 2)
+                    if f"cv2.{s_idx}" in out_name or ("cv2" in out_name and (arr.shape[1] == grid_size or arr.shape[2] == grid_size)):
+                        layers_map["cv2"][stride] = arr
+                    elif f"cv3.{s_idx}" in out_name or ("cv3" in out_name and (arr.shape[1] == grid_size or arr.shape[2] == grid_size)):
+                        layers_map["cv3"][stride] = arr
+                    elif f"cv4.{s_idx}" in out_name or ("cv4" in out_name and (arr.shape[1] == grid_size or arr.shape[2] == grid_size)):
+                        layers_map["cv4"][stride] = arr
 
-                for row in cls_boxes_arr:
-                    if len(row) < 5:
-                        continue
-                    c_val = float(row[4])
-                    if c_val < self.conf_threshold:
-                        continue
+        all_boxes = []
+        all_scores = []
+        all_mask_coeffs = []
 
-                    ymin, xmin, ymax, xmax = float(row[0]), float(row[1]), float(row[2]), float(row[3])
-                    if max(ymin, xmin, ymax, xmax) <= 1.01:
-                        xmin_px = xmin * img_w
-                        ymin_px = ymin * img_h
-                        xmax_px = xmax * img_w
-                        ymax_px = ymax * img_h
-                    else:
-                        scale_x = img_w / target_w
-                        scale_y = img_h / target_h
-                        xmin_px = xmin * scale_x
-                        ymin_px = ymin * scale_y
-                        xmax_px = xmax * scale_x
-                        ymax_px = ymax * scale_y
+        for stride in [8, 16, 32]:
+            if stride not in layers_map["cv2"] or stride not in layers_map["cv3"] or stride not in layers_map["cv4"]:
+                continue
 
-                    poly = np.array([
-                        [xmin_px, ymin_px],
-                        [xmax_px, ymin_px],
-                        [xmax_px, ymax_px],
-                        [xmin_px, ymax_px]
-                    ], dtype=np.float32)
-                    polygons.append(poly)
+            cv2_tensor = layers_map["cv2"][stride]
+            cv3_tensor = layers_map["cv3"][stride]
+            cv4_tensor = layers_map["cv4"][stride]
 
-        return polygons
+            h, w = cv2_tensor.shape[1], cv2_tensor.shape[2]
+            dfl_dist = _decode_dfl_bbox(cv2_tensor)
+
+            grid_y, grid_x = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
+            cx = (grid_x + 0.5) * stride
+            cy = (grid_y + 0.5) * stride
+
+            x1 = cx - dfl_dist[0] * stride
+            y1 = cy - dfl_dist[1] * stride
+            x2 = cx + dfl_dist[2] * stride
+            y2 = cy + dfl_dist[3] * stride
+
+            boxes = np.stack([x1, y1, x2, y2], axis=-1).reshape(-1, 4)
+
+            cls_logits = cv3_tensor.reshape(cv3_tensor.shape[0], -1)
+            scores = 1.0 / (1.0 + np.exp(-cls_logits))
+            max_scores = np.max(scores, axis=0)
+
+            coeffs = cv4_tensor.reshape(32, -1).T
+
+            all_boxes.append(boxes)
+            all_scores.append(max_scores)
+            all_mask_coeffs.append(coeffs)
+
+        if not all_boxes:
+            logger.warning("Failed to decode raw output tensors: missing required layers.")
+            return []
+
+        all_boxes = np.vstack(all_boxes)
+        all_scores = np.concatenate(all_scores)
+        all_mask_coeffs = np.vstack(all_mask_coeffs)
+
+        valid_idx = np.where(all_scores >= self.conf_threshold)[0]
+        if len(valid_idx) == 0:
+            logger.warning("No candidate bounding boxes above confidence threshold.")
+            return []
+
+        filt_boxes = all_boxes[valid_idx]
+        filt_scores = all_scores[valid_idx]
+        filt_coeffs = all_mask_coeffs[valid_idx]
+
+        boxes_xywh = []
+        for box in filt_boxes:
+            w_b = box[2] - box[0]
+            h_b = box[3] - box[1]
+            boxes_xywh.append([float(box[0]), float(box[1]), float(w_b), float(h_b)])
+
+        nms_indices = cv2.dnn.NMSBoxes(
+            boxes_xywh,
+            filt_scores.tolist(),
+            score_threshold=self.conf_threshold,
+            nms_threshold=self.iou_threshold,
+        )
+
+        if len(nms_indices) == 0:
+            logger.warning("No candidates left after NMS.")
+            return []
+
+        if isinstance(nms_indices, np.ndarray):
+            nms_indices = nms_indices.flatten()
+
+        best_nms_idx = nms_indices[np.argmax(filt_scores[nms_indices])]
+        best_box = filt_boxes[best_nms_idx]
+        best_coeff = filt_coeffs[best_nms_idx]
+
+        proto_tensor = layers_map.get("proto")
+        if proto_tensor is None:
+            scale_x = img_w / target_w
+            scale_y = img_h / target_h
+            poly = np.array([
+                [best_box[0] * scale_x, best_box[1] * scale_y],
+                [best_box[2] * scale_x, best_box[1] * scale_y],
+                [best_box[2] * scale_x, best_box[3] * scale_y],
+                [best_box[0] * scale_x, best_box[3] * scale_y],
+            ], dtype=np.float32)
+            return [poly]
+
+        p_c, p_h, p_w = proto_tensor.shape
+        proto_flat = proto_tensor.reshape(p_c, -1)
+        mask_logits = best_coeff @ proto_flat
+        mask_logits = mask_logits.reshape(p_h, p_w)
+
+        mask_prob = 1.0 / (1.0 + np.exp(-mask_logits))
+
+        scale_proto_x = p_w / target_w
+        scale_proto_y = p_h / target_h
+
+        px1 = int(np.clip(best_box[0] * scale_proto_x, 0, p_w))
+        py1 = int(np.clip(best_box[1] * scale_proto_y, 0, p_h))
+        px2 = int(np.clip(best_box[2] * scale_proto_x, 0, p_w))
+        py2 = int(np.clip(best_box[3] * scale_proto_y, 0, p_h))
+
+        cropped_mask = np.zeros_like(mask_prob)
+        if px2 > px1 and py2 > py1:
+            cropped_mask[py1:py2, px1:px2] = mask_prob[py1:py2, px1:px2]
+
+        bin_mask = (cropped_mask > 0.5).astype(np.uint8)
+        full_mask = cv2.resize(bin_mask, (img_w, img_h), interpolation=cv2.INTER_LINEAR)
+        full_bin = (full_mask > 0.5).astype(np.uint8)
+
+        contours, _ = cv2.findContours(full_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            scale_x = img_w / target_w
+            scale_y = img_h / target_h
+            poly = np.array([
+                [best_box[0] * scale_x, best_box[1] * scale_y],
+                [best_box[2] * scale_x, best_box[1] * scale_y],
+                [best_box[2] * scale_x, best_box[3] * scale_y],
+                [best_box[0] * scale_x, best_box[3] * scale_y],
+            ], dtype=np.float32)
+            return [poly]
+
+        best_contour = max(contours, key=cv2.contourArea)
+        poly = best_contour.reshape(-1, 2).astype(np.float32)
+        return [poly]
 
     # ---- Private helpers ----
 
