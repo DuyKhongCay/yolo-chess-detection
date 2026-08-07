@@ -62,4 +62,4 @@ model_script:
   - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
 
 # Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
-stage: "all"                           
+stage: "quantize"                           

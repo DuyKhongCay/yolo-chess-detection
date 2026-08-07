@@ -139,7 +139,6 @@ def _extract_4_edge_lines_ransac(
     polygon_points: np.ndarray, threshold: float = 10.0, max_iters: int = 1000
 ) -> Tuple[List[Tuple[float, float, float, float]], np.ndarray]:
     """Partition polygon contour into 4 edge clusters and fit 4 RANSAC lines.
-
     Uses contour perimeter splitting instead of geometric distance assignment
     to correctly partition points on perspective-angled boards.
     """
@@ -217,11 +216,7 @@ def _line_intersection(
     img_shape: Optional[Tuple[int, ...]] = None,
     margin: float = 100.0,
 ) -> Optional[np.ndarray]:
-    """Find intersection point of two 2D vector lines (vx, vy, x0, y0).
-
-    Returns:
-        Intersection coordinate [x, y] or None if parallel / out of bounds.
-    """
+    """Find intersection point of two 2D vector lines (vx, vy, x0, y0)."""
     vx1, vy1, x01, y01 = line1
     vx2, vy2, x02, y02 = line2
 
@@ -277,12 +272,7 @@ def extract_chessboard_perspective(
     target_size: int = 1200,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
     """Perform perspective transformation given 4 board corners and extract 64 square polygons.
-
-    Args:
-        image_bgr: Input BGR image.
-        corners: 4 ordered corner points [top_left, top_right, bottom_left, bottom_right].
-        target_size: Resolution of top-down warped board.
-
+    
     Returns:
         Tuple of (warped_board, M, M_inv, squares_data_original, cell_dict).
     """
@@ -332,15 +322,7 @@ def extract_chessboard_perspective(
 
 
 def draw_extracted_squares(image_bgr: np.ndarray, cell_dict: dict) -> np.ndarray:
-    """Draw extracted 64 chessboard square polygons on original image.
-
-    Args:
-        image_bgr: Original BGR image.
-        cell_dict: Cell dictionary from extract_chessboard_perspective.
-
-    Returns:
-        Image with 64-square grid lines overlaid (BGR).
-    """
+    """Draw extracted 64 chessboard square polygons on original image."""
     annotated = image_bgr.copy()
     for info in cell_dict.values():
         cv2.polylines(
