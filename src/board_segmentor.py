@@ -422,7 +422,8 @@ class BoardSegmentor:
         self.output_infos = self.hef.get_output_vstream_infos()
 
         self.input_params = InputVStreamParams.make(self.network_group, quantized=False, format_type=FormatType.UINT8)
-        self.output_params = OutputVStreamParams.make(self.network_group, quantized=False)
+        # Force float32 dequantized output so raw int8/uint8 values are properly scaled
+        self.output_params = OutputVStreamParams.make(self.network_group, quantized=False, format_type=FormatType.FLOAT32)
 
     def _predict_hef(self, image_bgr: np.ndarray) -> List[np.ndarray]:
         """Run Hailo NPU inference for segmentation model and decode raw tensors or Hailo NMS layer."""
@@ -438,52 +439,6 @@ class BoardSegmentor:
             with self.network_group.activate(self.network_group_params):
                 raw_outputs = infer_pipeline.infer(input_data)
 
-        # Check if outputs contain Hailo NMS postprocessing layer
-        is_nms_output = any("nms" in name.lower() for name in raw_outputs.keys())
-
-        if is_nms_output:
-            polygons = []
-            for out_name, out_tensor in raw_outputs.items():
-                class_list = out_tensor[0] if isinstance(out_tensor, list) and len(out_tensor) > 0 and isinstance(out_tensor[0], list) else out_tensor
-
-                for cls_id, cls_boxes in enumerate(class_list):
-                    cls_boxes_arr = np.asarray(cls_boxes)
-                    if cls_boxes_arr.size == 0:
-                        continue
-                    if cls_boxes_arr.ndim == 1:
-                        cls_boxes_arr = np.expand_dims(cls_boxes_arr, axis=0)
-
-                    for row in cls_boxes_arr:
-                        if len(row) < 5:
-                            continue
-                        c_val = float(row[4])
-                        if c_val < self.conf_threshold:
-                            continue
-
-                        ymin, xmin, ymax, xmax = float(row[0]), float(row[1]), float(row[2]), float(row[3])
-                        if max(ymin, xmin, ymax, xmax) <= 1.01:
-                            xmin_px = xmin * img_w
-                            ymin_px = ymin * img_h
-                            xmax_px = xmax * img_w
-                            ymax_px = ymax * img_h
-                        else:
-                            scale_x = img_w / target_w
-                            scale_y = img_h / target_h
-                            xmin_px = xmin * scale_x
-                            ymin_px = ymin * scale_y
-                            xmax_px = xmax * scale_x
-                            ymax_px = ymax * scale_y
-
-                        poly = np.array([
-                            [xmin_px, ymin_px],
-                            [xmax_px, ymin_px],
-                            [xmax_px, ymax_px],
-                            [xmin_px, ymax_px]
-                        ], dtype=np.float32)
-                        polygons.append(poly)
-
-            return polygons
-
         # Decode raw YOLOv8-seg 10 output tensors
         layers_map = {
             "cv2": {},
@@ -493,22 +448,39 @@ class BoardSegmentor:
         }
 
         for out_name, out_tensor in raw_outputs.items():
-            arr = np.squeeze(np.asarray(out_tensor))
-            if arr.ndim == 3:
-                if arr.shape[0] not in (64, 32, 1) and arr.shape[2] in (64, 32, 1):
-                    arr = np.transpose(arr, (2, 0, 1))
+            arr = np.asarray(out_tensor, dtype=np.float32)
+            if arr.ndim == 4:
+                arr = np.squeeze(arr, axis=0)
 
-            if "proto" in out_name:
+            # Skip unexpected tensor shapes
+            if arr.ndim != 3:
+                logger.debug("Skipping tensor %s with unexpected shape %s", out_name, arr.shape)
+                continue
+
+            # Ensure shape is in (Channels, Height, Width) format
+            if arr.shape[0] not in (64, 32, 1) and arr.shape[2] in (64, 32, 1):
+                arr = np.transpose(arr, (2, 0, 1))
+
+            c, h, w = arr.shape[0], arr.shape[1], arr.shape[2]
+
+            # 1. Mask Proto Layer (160x160, 32 channels)
+            if h == 160 and c == 32:
                 layers_map["proto"] = arr
-            else:
-                for stride, grid_size in [(8, 80), (16, 40), (32, 20)]:
-                    s_idx = 0 if stride == 8 else (1 if stride == 16 else 2)
-                    if f"cv2.{s_idx}" in out_name or ("cv2" in out_name and (arr.shape[1] == grid_size or arr.shape[2] == grid_size)):
-                        layers_map["cv2"][stride] = arr
-                    elif f"cv3.{s_idx}" in out_name or ("cv3" in out_name and (arr.shape[1] == grid_size or arr.shape[2] == grid_size)):
-                        layers_map["cv3"][stride] = arr
-                    elif f"cv4.{s_idx}" in out_name or ("cv4" in out_name and (arr.shape[1] == grid_size or arr.shape[2] == grid_size)):
-                        layers_map["cv4"][stride] = arr
+                continue
+
+            # 2. Classify by Stride (H=80 -> stride 8, H=40 -> stride 16, H=20 -> stride 32)
+            stride = None
+            if h == 80: stride = 8
+            elif h == 40: stride = 16
+            elif h == 20: stride = 32
+
+            if stride is not None:
+                if c == 64:      # BBox DFL (4 * 16)
+                    layers_map["cv2"][stride] = arr
+                elif c == 32:    # Mask coeffs (32 features)
+                    layers_map["cv4"][stride] = arr
+                else:            # Class scores (num_classes, here = 1)
+                    layers_map["cv3"][stride] = arr
 
         all_boxes = []
         all_scores = []
@@ -618,9 +590,10 @@ class BoardSegmentor:
         if px2 > px1 and py2 > py1:
             cropped_mask[py1:py2, px1:px2] = mask_prob[py1:py2, px1:px2]
 
-        bin_mask = (cropped_mask > 0.5).astype(np.uint8)
-        full_mask = cv2.resize(bin_mask, (img_w, img_h), interpolation=cv2.INTER_LINEAR)
-        full_bin = (full_mask > 0.5).astype(np.uint8)
+        # Upsample float probability map first, then binarize — avoids jagged edges
+        # from upscaling a binary mask (mirrors Ultralytics internal handling)
+        full_mask_prob = cv2.resize(cropped_mask, (img_w, img_h), interpolation=cv2.INTER_LINEAR)
+        full_bin = (full_mask_prob > 0.5).astype(np.uint8)
 
         contours, _ = cv2.findContours(full_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
