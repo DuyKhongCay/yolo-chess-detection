@@ -1,5 +1,5 @@
-# Base image standard with CUDA 11.8 and cuDNN 8 (fully compatible with Hailo DFC & TensorFlow)
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+# Base image standard with CUDA 12.5.1 (fully compatible with Hailo DFC 3.34 & TensorFlow)
+FROM nvidia/cuda:12.5.1-devel-ubuntu22.04
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
@@ -28,23 +28,63 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
     && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 
 WORKDIR /workspace
+# Configure custom colored bash prompt (Yellow user@host, Blue directory)
+RUN echo 'export PS1="\[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /root/.bashrc
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Install PyTorch cu118 explicitly to prevent CUDA version mismatch with Hailo SDK
-RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# Install PyTorch with CUDA 12 support to match CUDA 12.5 host/base image environment
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
 # Copy wheel and install Hailo Dataflow Compiler inside Docker image
 COPY hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl /tmp/
 RUN pip install --no-cache-dir /tmp/hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl \
     && rm /tmp/hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl
 
-# Configure custom colored bash prompt (Yellow user@host, Blue directory)
-RUN echo 'export PS1="\[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /root/.bashrc
 
-# Install Graphviz system library and Python package for model visualization
-RUN apt-get update && apt-get install -y --no-install-recommends graphviz \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir graphviz
+# Install system packages for interactive visualization, graph support, and Node.js v20+ (for DFC Studio)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-tk \
+    graphviz \
+    libgraphviz-dev \
+    gcc \
+    pkg-config \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
+# Install Hailo DFC visualization extra dependencies (pygraphviz, matplotlib, etc.)
+RUN pip install --no-cache-dir "hailo-dataflow-compiler[viz] @ file:///tmp/hailo_dataflow_compiler-3.34.0-py3-none-linux_x86_64.whl" 2>/dev/null \
+    || pip install --no-cache-dir pygraphviz matplotlib
 
+# Install cuDNN and cuBLAS for TensorFlow CUDA support inside Hailo DFC
+RUN pip install --no-cache-dir nvidia-cudnn-cu12 nvidia-cublas-cu12
+
+# Install cuDNN via apt for system-wide CUDA support (required by TensorFlow)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcudnn9-cuda-12 \
+    libcudnn9-dev-cuda-12 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Expose cuDNN and cuBLAS shared libraries (installed via pip's nvidia packages)
+# to TensorFlow's dynamic linker — required for GPU kernels (e.g. Conv2D in Hailo DFC)
+RUN SITE_PACKAGES=$(python3 -c "import site; print(site.getsitepackages()[0])") && \
+    echo "$SITE_PACKAGES/nvidia/cudnn/lib" >> /etc/ld.so.conf.d/nvidia-pip.conf && \
+    echo "$SITE_PACKAGES/nvidia/cublas/lib" >> /etc/ld.so.conf.d/nvidia-pip.conf && \
+    ldconfig
+
+# GPU selection and memory configuration
+ENV CUDA_VISIBLE_DEVICES="0"
+ENV TF_FORCE_GPU_ALLOW_GROWTH="true"
+ENV TF_RAM_ALLOCATOR_BYTES_LIMIT="2147483648"
+ENV TF_GPU_ALLOCATOR="cuda_malloc_async"
+ENV TF_CPP_MIN_LOG_LEVEL="2"
+
+# Make system cuDNN (/usr/lib/x86_64-linux-gnu) and pip cuDNN/cuBLAS discoverable at runtime
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.10/dist-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH}
+
+# Set user environment variables to prevent KeyError: 'USER' in Hailo DFC compiler / getpass.getuser()
+ENV USER=root
+ENV USERNAME=root
+ENV LOGNAME=root

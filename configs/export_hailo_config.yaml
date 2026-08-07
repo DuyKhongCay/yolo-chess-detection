@@ -1,0 +1,34 @@
+# Input .pt or .onnx model path
+model_path: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chessboard_yolo8n-seg/weights/best.pt"         
+# Model architecture identifier
+model_name: "yolov8n-seg"              
+# Path to calibration images directory
+calib_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/chessboard-segmentation/train/images" 
+# Output directory for .har and .hef files 
+output_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chessboard_yolo8n-seg/hailo_model"        
+hw_arch: "hailo8"                      # Hailo target architecture ('hailo8', 'hailo8l', etc.)
+imgsz: 640                             # Input image size (square 640x640)
+calib_count: 512                        # Number of calibration images to load
+device: "0"                            # Execution device ('gpu', '0', 'cpu', '-1')
+# Custom end node names to trim ONNX graph
+end_node_names:
+  - "/model.22/cv2.0/cv2.0.2/Conv"
+  - "/model.22/cv3.0/cv3.0.2/Conv"
+  - "/model.22/cv4.0/cv4.0.2/Conv"
+  - "/model.22/cv2.1/cv2.1.2/Conv"
+  - "/model.22/cv3.1/cv3.1.2/Conv"
+  - "/model.22/cv4.1/cv4.1.2/Conv"
+  - "/model.22/cv2.2/cv2.2.2/Conv"
+  - "/model.22/cv3.2/cv3.2.2/Conv"
+  - "/model.22/cv4.2/cv4.2.2/Conv"
+  - "/model.22/proto/cv3/act/Mul"
+
+# Custom model script command strings or file path
+model_script: 
+  - "normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
+  - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
+  - "quantization_param(output_layer2, precision_mode=a16_w16)\n"
+  - "quantization_param(output_layer6, precision_mode=a16_w16)\n"
+
+# Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
+stage: "optimize"                           
