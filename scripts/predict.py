@@ -28,11 +28,11 @@ from src.result_visualizer import (
 @dataclass
 class PredictConfig:
     # Path to input image file or directory containing test images
-    source: str
-    # Path to fine-tuned YOLO piece detection model weights file (.pt)
-    model: str
+    source: str = ""
+    # Path to fine-tuned YOLO piece detection model weights file (.pt or .hef)
+    model: str = ""
     # Directory where prediction visualizer results will be saved
-    output_dir: str
+    output_dir: str = ""
     # Confidence threshold for object detection
     conf: float = 0.25
     # NMS IoU threshold for object detection
@@ -41,26 +41,34 @@ class PredictConfig:
     imgsz: int = 640
     # CUDA device ID (e.g. '0') or 'cpu'
     device: str = "cpu"
-    # Board segmentor backend: 'local' (YOLO) or 'roboflow'
-    seg_source_type: str = "local"
-    # Path to local segmentation model (.pt) or Roboflow model ID
-    seg_model: str = "chessboard-segmentation/1"
-    # Roboflow API key
-    roboflow_api_key: str = ""
-    # Roboflow server API URL
-    roboflow_api_url: str = "https://serverless.roboflow.com"
+    # Path to segmentation model weights file (.pt or .hef)
+    seg_model: str = ""
     # If True, run object detection only and output cropped bbox grid
     object_detect_only: bool = False
     # If True, run board segmentation only and output 1x2 visualization (Panels 1 & 2)
     board_segment_only: bool = False
 
+    def __post_init__(self):
+        """Validate that required parameters are provided."""
+        if not self.source:
+            raise ValueError("Missing required argument: 'source'.")
+        if not self.output_dir:
+            raise ValueError("Missing required argument: 'output_dir'.")
+
+        if not self.board_segment_only and not self.model:
+            raise ValueError("Missing required argument: 'model'.")
+        if not self.object_detect_only and not self.seg_model:
+            raise ValueError("Missing required argument: 'seg_model'.")
+
 
 @draccus.wrap()
 def main(cfg: PredictConfig):
     """Main execution loop for chess piece detection, perspective transformation, and 2x2 grid visualization."""
-    model_path = Path(cfg.model)
     source_path = Path(cfg.source)
+    model_path = Path(cfg.model) if cfg.model else None
     out_dir = Path(cfg.output_dir)
+    seg_model_path = Path(cfg.seg_model) if cfg.seg_model else None
+
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("=== Starting Chess Piece Detection Visualizer ===")
@@ -68,26 +76,17 @@ def main(cfg: PredictConfig):
     print(f"Object detect only:    {cfg.object_detect_only}")
     print(f"Board segment only:    {cfg.board_segment_only}")
     if not cfg.object_detect_only:
-        print(f"Board segmentor mode:  {cfg.seg_source_type} ({cfg.seg_model})")
+        print(f"Board segmentor model: {seg_model_path}")
     print(f"Input source:          {source_path}")
     print(f"Output directory:      {out_dir}")
 
     # Initialize BoardSegmentor only when needed
     board_segmentor = None
     if not cfg.object_detect_only:
-        if cfg.seg_source_type.lower() == "local":
-            board_segmentor = BoardSegmentor(
-                source_type="local",
-                model_path=Path(cfg.seg_model),
-                device=cfg.device,
-            )
-        else:
-            board_segmentor = BoardSegmentor(
-                source_type="roboflow",
-                model_id=cfg.seg_model if "/" in cfg.seg_model else "chessboard-segmentation/1",
-                api_url=cfg.roboflow_api_url,
-                api_key=cfg.roboflow_api_key,
-            )
+        board_segmentor = BoardSegmentor(
+            model_path=seg_model_path,
+            device=cfg.device,
+        )
 
     # Load piece detection model (.pt or .hef) only when needed
     piece_detector = None

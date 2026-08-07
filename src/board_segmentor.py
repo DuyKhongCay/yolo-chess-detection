@@ -1,12 +1,11 @@
-"""Board Segmentor module using YOLO / Roboflow Segmentation and Edge-Separated RANSAC line fitting.
+"""Board Segmentor module using YOLO Segmentation (.pt / .hef) and Edge-Separated RANSAC line fitting.
 
-This module provides multi-backend segmentation (Local YOLO or Roboflow Cloud Inference),
+This module provides segmentation using local PyTorch (.pt) or Hailo (.hef) models,
 robust edge-separated RANSAC line fitting to detect the 4 corners of a chessboard,
 and perspective transformation with 64-square grid extraction.
 """
 
 import logging
-import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
@@ -17,11 +16,6 @@ try:
     from ultralytics import YOLO
 except ImportError:
     YOLO = None
-
-try:
-    from inference_sdk import InferenceHTTPClient
-except ImportError:
-    InferenceHTTPClient = None
 
 logger = logging.getLogger(__name__)
 
@@ -365,15 +359,11 @@ def draw_extracted_squares(image_bgr: np.ndarray, cell_dict: dict) -> np.ndarray
 # ---------------------------------------------------------------------------
 
 class BoardSegmentor:
-    """Chessboard segmentation and 4-corner detection using YOLO or Roboflow + RANSAC."""
+    """Chessboard segmentation and 4-corner detection using PyTorch (.pt) or Hailo (.hef) + RANSAC."""
 
     def __init__(
         self,
-        source_type: str = "local",
         model_path: Optional[Union[str, Path]] = None,
-        model_id: Optional[str] = "chessboard-segmentation/1",
-        api_url: str = "https://serverless.roboflow.com",
-        api_key: Optional[str] = None,
         device: Union[str, int] = "cpu",
         conf_threshold: float = 0.25,
         iou_threshold: float = 0.45,
@@ -381,81 +371,115 @@ class BoardSegmentor:
         ransac_threshold: float = 10.0,
         ransac_max_iters: int = 1000,
     ):
-        """Initialize BoardSegmentor with local YOLO or Roboflow Cloud backend.
-
-        Args:
-            source_type: Backend type - 'local' (YOLO) or 'roboflow' / 'server' / 'remote'.
-            model_path: Path to local YOLO segmentation .pt model.
-            model_id: Roboflow model ID (e.g. 'chessboard-segmentation/1').
-            api_url: Roboflow server URL.
-            api_key: Roboflow API key.
-            device: Inference device for local model ("cpu", "cuda", 0, etc.).
-            conf_threshold: Confidence threshold.
-            iou_threshold: NMS IoU threshold.
-            imgsz: Target inference image size.
-            ransac_threshold: RANSAC distance threshold in pixels.
-            ransac_max_iters: Maximum RANSAC iterations.
-        """
-        self.source_type = source_type.lower()
+        """Initialize BoardSegmentor for local PyTorch (.pt) or Hailo (.hef) model."""
+        self.model_path = Path(model_path) if model_path else None
         self.conf_threshold = conf_threshold
         self.iou_threshold = iou_threshold
         self.imgsz = imgsz
         self.device = device
-        self.model_id = model_id
         self.ransac_threshold = ransac_threshold
         self.ransac_max_iters = ransac_max_iters
 
+        self.is_hef = self.model_path is not None and self.model_path.suffix.lower() == ".hef"
         self._local_model = None
-        self._roboflow_client = None
 
         # Load backend on init
-        if self.source_type == "local":
-            if model_path:
-                if YOLO is None:
-                    raise ImportError(
-                        "Ultralytics is not installed. Install via 'pip install ultralytics'."
-                    )
-                logger.info("Loading local YOLO segmentation model from %s...", model_path)
-                self._local_model = YOLO(str(model_path))
-        elif self.source_type in ("roboflow", "server", "remote"):
-            if InferenceHTTPClient is None:
+        if self.is_hef:
+            self._init_hailo()
+        elif self.model_path:
+            if YOLO is None:
                 raise ImportError(
-                    "inference_sdk is not installed. Install via 'pip install inference-sdk'."
+                    "Ultralytics is not installed. Install via 'pip install ultralytics'."
                 )
-            logger.info("Initializing Roboflow InferenceHTTPClient (URL: %s)...", api_url)
-            self._roboflow_client = InferenceHTTPClient(
-                api_url=api_url, api_key=api_key
-            )
-        else:
-            raise ValueError(
-                f"Unsupported source_type: '{source_type}'. Choose 'local' or 'roboflow'."
-            )
+            logger.info("Loading local YOLO segmentation model from %s...", self.model_path)
+            self._local_model = YOLO(str(self.model_path))
 
-    # ---- Private helpers ----
+    def _init_hailo(self):
+        """Initialize Hailo NPU inference session using HailoRT SDK."""
+        try:
+            from hailo_platform import (
+                HEF,
+                VDevice,
+                HailoStreamInterface,
+                ConfigureParams,
+                InputVStreamParams,
+                OutputVStreamParams,
+                FormatType,
+            )
+        except ImportError as e:
+            raise ImportError(
+                "hailo_platform is required to run .hef models on Hailo NPU hardware."
+            ) from e
 
-    @staticmethod
-    def _parse_roboflow_polygons(res_json: dict) -> List[np.ndarray]:
-        """Extract segmentation polygons from Roboflow API response JSON."""
+        self.hef = HEF(str(self.model_path))
+        self.vdevice = VDevice()
+        configure_params = ConfigureParams.create_from_hef(self.hef, interface=HailoStreamInterface.PCIe)
+        self.network_group = self.vdevice.configure(self.hef, configure_params)[0]
+        self.network_group_params = self.network_group.create_params()
+
+        self.input_info = self.hef.get_input_vstream_infos()[0]
+        self.output_infos = self.hef.get_output_vstream_infos()
+
+        self.input_params = InputVStreamParams.make(self.network_group, quantized=False, format_type=FormatType.UINT8)
+        self.output_params = OutputVStreamParams.make(self.network_group, quantized=False)
+
+    def _predict_hef(self, image_bgr: np.ndarray) -> List[np.ndarray]:
+        """Run Hailo NPU inference for segmentation model."""
+        from hailo_platform import InferVStreams
+
+        img_h, img_w = image_bgr.shape[:2]
+        target_h, target_w = self.input_info.shape[0], self.input_info.shape[1]
+        rgb_img = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        resized_img = cv2.resize(rgb_img, (target_w, target_h))
+        input_data = {self.input_info.name: np.expand_dims(resized_img, axis=0)}
+
+        with InferVStreams(self.network_group, self.input_params, self.output_params) as infer_pipeline:
+            with self.network_group.activate(self.network_group_params):
+                raw_outputs = infer_pipeline.infer(input_data)
+
         polygons = []
-        preds = res_json.get("predictions", [])
-        if isinstance(preds, dict):
-            preds = [preds]
+        for out_name, out_tensor in raw_outputs.items():
+            class_list = out_tensor[0] if isinstance(out_tensor, list) and len(out_tensor) > 0 and isinstance(out_tensor[0], list) else out_tensor
 
-        for p in preds:
-            points = p.get("points")
-            if not points:
-                continue
-            poly_pts = []
-            for pt in points:
-                if isinstance(pt, dict):
-                    poly_pts.append([pt.get("x", 0.0), pt.get("y", 0.0)])
-                elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
-                    poly_pts.append([pt[0], pt[1]])
+            for cls_id, cls_boxes in enumerate(class_list):
+                cls_boxes_arr = np.asarray(cls_boxes)
+                if cls_boxes_arr.size == 0:
+                    continue
+                if cls_boxes_arr.ndim == 1:
+                    cls_boxes_arr = np.expand_dims(cls_boxes_arr, axis=0)
 
-            if len(poly_pts) >= 3:
-                polygons.append(np.array(poly_pts, dtype=np.float32))
+                for row in cls_boxes_arr:
+                    if len(row) < 5:
+                        continue
+                    c_val = float(row[4])
+                    if c_val < self.conf_threshold:
+                        continue
+
+                    ymin, xmin, ymax, xmax = float(row[0]), float(row[1]), float(row[2]), float(row[3])
+                    if max(ymin, xmin, ymax, xmax) <= 1.01:
+                        xmin_px = xmin * img_w
+                        ymin_px = ymin * img_h
+                        xmax_px = xmax * img_w
+                        ymax_px = ymax * img_h
+                    else:
+                        scale_x = img_w / target_w
+                        scale_y = img_h / target_h
+                        xmin_px = xmin * scale_x
+                        ymin_px = ymin * scale_y
+                        xmax_px = xmax * scale_x
+                        ymax_px = ymax * scale_y
+
+                    poly = np.array([
+                        [xmin_px, ymin_px],
+                        [xmax_px, ymin_px],
+                        [xmax_px, ymax_px],
+                        [xmin_px, ymax_px]
+                    ], dtype=np.float32)
+                    polygons.append(poly)
 
         return polygons
+
+    # ---- Private helpers ----
 
     def _predict_corners_from_polygon(
         self,
@@ -505,17 +529,17 @@ class BoardSegmentor:
             img_bgr = cv2.imread(str(image))
             if img_bgr is None:
                 raise ValueError(f"Could not read image from {image}")
-            image_path_str = str(image)
         else:
             img_bgr = image.copy()
-            image_path_str = None
 
         h, w = img_bgr.shape[:2]
         polygons = []
         raw_results = None
 
         # Run inference
-        if self.source_type == "local":
+        if self.is_hef:
+            polygons = self._predict_hef(img_bgr)
+        else:
             if self._local_model is None:
                 raise RuntimeError(
                     "Local YOLO model is not loaded. Provide model_path in constructor."
@@ -530,20 +554,16 @@ class BoardSegmentor:
             )
             if raw_results and raw_results[0].masks is not None and len(raw_results[0].masks) > 0:
                 polygons = [np.array(poly, dtype=np.float32) for poly in raw_results[0].masks.xy]
-
-        elif self.source_type in ("roboflow", "server", "remote"):
-            if self._roboflow_client is None:
-                raise RuntimeError(
-                    "Roboflow client is not initialized. Provide api_key in constructor."
-                )
-            if image_path_str:
-                raw_results = self._roboflow_client.infer(image_path_str, model_id=self.model_id)
-            else:
-                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=True) as tmp:
-                    cv2.imwrite(tmp.name, img_bgr)
-                    raw_results = self._roboflow_client.infer(tmp.name, model_id=self.model_id)
-            if isinstance(raw_results, dict):
-                polygons = self._parse_roboflow_polygons(raw_results)
+            elif raw_results and raw_results[0].boxes is not None and len(raw_results[0].boxes) > 0:
+                for box in raw_results[0].boxes:
+                    xyxy = box.xyxy[0].cpu().numpy()
+                    poly = np.array([
+                        [xyxy[0], xyxy[1]],
+                        [xyxy[2], xyxy[1]],
+                        [xyxy[2], xyxy[3]],
+                        [xyxy[0], xyxy[3]]
+                    ], dtype=np.float32)
+                    polygons.append(poly)
 
         if not polygons:
             logger.warning("No segmentation masks returned by the model.")

@@ -10,8 +10,5 @@ device: 'cpu'
 object_detect_only: false
 board_segment_only: false
 # Board Segmentor Configuration
-seg_source_type: "local"
 seg_model: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chessboard_yolo8n-seg/weights/best.pt
 # seg_model: ""
-# roboflow_api_key: "qlW2c4LOJkr0NkVrdkYH"
-# roboflow_api_url: "https://serverless.roboflow.com"
