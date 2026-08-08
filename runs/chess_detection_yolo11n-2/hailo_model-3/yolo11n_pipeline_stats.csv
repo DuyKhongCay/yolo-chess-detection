@@ -1,0 +1,17 @@
+net_name,vstream_name,param_type,element,mean,min,max,var,sd,mean_sd,index
+yolo11n,yolo11n/input_layer1,fps,HwWriteEl3yolo11n/input_layer1,3233.2078,1732.6728,97295.1936,18965835.5072,4354.9782,200.4541,
+yolo11n,yolo11n/input_layer1,fps,PreInferEl3yolo11n/input_layer1,641.1444,591.2996,757.0722,572.7698,23.9326,1.1004,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl0yolo11n/conv65_143,57.0005,51.9870,63.4478,0.3453,0.5876,0.0271,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl0yolo11n/conv80_143,56.9954,55.8005,58.2614,0.0171,0.1309,0.0060,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl1yolo11n/conv62_143,57.0069,51.7705,63.0410,0.2959,0.5439,0.0251,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl1yolo11n/conv77_143,56.9985,55.6252,58.3233,0.0246,0.1570,0.0072,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl2yolo11n/conv54_143,57.0165,51.6783,63.5556,0.1852,0.4304,0.0199,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl3yolo11n/conv51_143,57.0119,52.0215,62.8023,0.1682,0.4101,0.0189,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,NmsPPMuxEl0YOLOV8-Post-Process,2543.7796,2432.2319,3002.5251,8864.2407,94.1501,4.3428,
+yolo11n,yolo11n/input_layer1,queue_size,PushQEl3yolo11n/input_layer1,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms0yolo11n/conv65_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms0yolo11n/conv80_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms1yolo11n/conv62_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms1yolo11n/conv77_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms2yolo11n/conv54_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms3yolo11n/conv51_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0

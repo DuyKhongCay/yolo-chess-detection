@@ -1,0 +1,27 @@
+{
+    "time": "Sat Aug  8 09:48:17 2026",
+    "inference_mode": "full_async",
+    "network_groups": [
+        {
+            "name": "yolov8n-seg",
+            "full_hef_path": "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chessboard_yolo8n-seg/hailo_model/yolov8n-seg.hef",
+            "FPS": "27.172456"
+        },
+        {
+            "name": "yolo11n",
+            "full_hef_path": "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_model-3/yolo11n.hef",
+            "FPS": "27.472143"
+        }
+    ],
+    "time_to_run": "20.00 seconds",
+    "devices": [
+        {
+            "device_id": "0001:04:00.0",
+            "temperature": {
+                "min": "45.359337 C",
+                "max": "46.876930 C",
+                "average": "46.105081 C"
+            }
+        }
+    ]
+}

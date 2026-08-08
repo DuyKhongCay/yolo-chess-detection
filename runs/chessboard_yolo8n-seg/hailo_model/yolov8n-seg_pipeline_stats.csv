@@ -1,0 +1,12 @@
+net_name,vstream_name,param_type,element,mean,min,max,var,sd,mean_sd,index
+yolov8n-seg,yolov8n-seg/conv44,fps,HwReadEl7yolov8n-seg/conv44,61.9117,40.1934,75.0758,3.0275,1.7400,0.0808,
+yolov8n-seg,yolov8n-seg/conv45,fps,HwReadEl11yolov8n-seg/conv45,64.8459,56.7344,77.4567,2.3927,1.5468,0.0718,
+yolov8n-seg,yolov8n-seg/conv46,fps,HwReadEl8yolov8n-seg/conv46,62.0458,40.8686,81.8601,3.6384,1.9075,0.0886,
+yolov8n-seg,yolov8n-seg/conv48,fps,HwReadEl15yolov8n-seg/conv48,56.8985,45.8299,66.3528,1.4718,1.2132,0.0563,
+yolov8n-seg,yolov8n-seg/conv60,fps,HwReadEl2yolov8n-seg/conv60,62.6494,47.5426,96.9808,5.0109,2.2385,0.1039,
+yolov8n-seg,yolov8n-seg/conv61,fps,HwReadEl12yolov8n-seg/conv61,64.6936,46.6962,102.3938,5.6081,2.3681,0.1099,
+yolov8n-seg,yolov8n-seg/conv62,fps,HwReadEl5yolov8n-seg/conv62,62.6867,40.1844,77.9055,3.2689,1.8080,0.0839,
+yolov8n-seg,yolov8n-seg/conv73,fps,HwReadEl6yolov8n-seg/conv73,62.0820,40.5327,83.3967,4.1740,2.0430,0.0948,
+yolov8n-seg,yolov8n-seg/conv74,fps,HwReadEl13yolov8n-seg/conv74,64.2217,46.6014,78.8229,3.7998,1.9493,0.0905,
+yolov8n-seg,yolov8n-seg/conv75,fps,HwReadEl1yolov8n-seg/conv75,63.2608,60.8540,77.8063,2.1363,1.4616,0.0679,
+yolov8n-seg,yolov8n-seg/input_layer1,fps,HwWriteEl7yolov8n-seg/input_layer1,3236.8229,1535.8482,19508.7692,704900.8121,839.5837,38.8930,
