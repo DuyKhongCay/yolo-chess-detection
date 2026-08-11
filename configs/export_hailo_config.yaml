@@ -1,7 +1,7 @@
-### YOLOV8-SEG config
+######### YOLOV8-SEG config
 
 # # Input .pt or .onnx model path
-# model_path: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chessboard_yolo8n-seg/weights/best.pt"         
+# model_path: ""         
 # # Model architecture identifier
 # model_name: "yolov8n-seg"              
 # # Path to calibration images directory
@@ -12,7 +12,7 @@
 # imgsz: 640                             # Input image size (square 640x640)
 # calib_count: 512                        # Number of calibration images to load
 # device: "0"                            # Execution device ('gpu', '0', 'cpu', '-1')
-## Custom end node names to trim ONNX graph
+# # Custom end node names to trim ONNX graph
 # end_node_names:
 #   - "/model.22/cv2.0/cv2.0.2/Conv"
 #   - "/model.22/cv3.0/cv3.0.2/Conv"
@@ -27,39 +27,75 @@
 
 # # Custom model script command strings or file path
 # model_script: 
-#   - "normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
-#   - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
-#   - "quantization_param(output_layer2, precision_mode=a16_w16)\n"
-#   - "quantization_param(output_layer6, precision_mode=a16_w16)\n"
+#   # - "normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
+#   # - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
+  # - "quantization_param(output_layer2, precision_mode=a16_w16)\n"
+  # - "quantization_param(output_layer6, precision_mode=a16_w16)\n"
 
-# YOLO11N
+# Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
+# stage: "optimize"       
 
-# Input .pt or .onnx model path
-model_path: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/weights/best.onnx         
+###### YOLO11N
+
+# # Input .pt or .onnx model path
+# model_path: "" 
+# # Model architecture identifier
+# model_name: "yolo11n"              
+# # Path to calibration images directory
+# calib_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/rbflow_chesspieces_dataset/train/images" 
+# # Output directory for .har and .hef files 
+# output_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_model-3      
+# hw_arch: "hailo8"                      # Hailo target architecture ('hailo8', 'hailo8l', etc.)
+# imgsz: 640                             # Input image size (square 640x640)
+# calib_count: 1024                        # Number of calibration images to load
+# device: "0"                            # Execution device ('gpu', '0', 'cpu', '-1')
+# # Custom end node names to trim ONNX graph
+# end_node_names:
+#   - "/model.23/cv2.0/cv2.0.2/Conv"
+#   - "/model.23/cv2.1/cv2.1.2/Conv"
+#   - "/model.23/cv2.2/cv2.2.2/Conv"
+#   - "/model.23/cv3.0/cv3.0.2/Conv"
+#   - "/model.23/cv3.1/cv3.1.2/Conv"
+#   - "/model.23/cv3.2/cv3.2.2/Conv"
+
+# # Custom model script command strings or file path
+# model_script: 
+#   # - "normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
+#   - "nms_postprocess(meta_arch=yolov8, engine=cpu, nms_scores_th=0.25, nms_iou_th=0.65, classes=12)\n"
+#   # - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
+
+# # Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
+# stage: "optimize"                           
+
+########## Multi-model
+ 
 # Model architecture identifier
-model_name: "yolo11n"              
+model_path: ""
+model_name: "auto_join_inputs"              
 # Path to calibration images directory
 calib_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/rbflow_chesspieces_dataset/train/images" 
 # Output directory for .har and .hef files 
-output_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_model-3"        
+output_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/hailo_joined_model/  
 hw_arch: "hailo8"                      # Hailo target architecture ('hailo8', 'hailo8l', etc.)
 imgsz: 640                             # Input image size (square 640x640)
 calib_count: 1024                        # Number of calibration images to load
 device: "0"                            # Execution device ('gpu', '0', 'cpu', '-1')
 # Custom end node names to trim ONNX graph
 end_node_names:
-  - "/model.23/cv2.0/cv2.0.2/Conv"
-  - "/model.23/cv2.1/cv2.1.2/Conv"
-  - "/model.23/cv2.2/cv2.2.2/Conv"
-  - "/model.23/cv3.0/cv3.0.2/Conv"
-  - "/model.23/cv3.1/cv3.1.2/Conv"
-  - "/model.23/cv3.2/cv3.2.2/Conv"
 
 # Custom model script command strings or file path
 model_script: 
-  - "normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
-  - "nms_postprocess(meta_arch=yolov8, engine=cpu, nms_scores_th=0.25, nms_iou_th=0.65, classes=12)\n"
-  - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
+  # - "normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
+  # - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
+  # - "quantization_param(yolov8n-seg/output_layer2, precision_mode=a16_w16)\n"
+  # - "quantization_param(yolov8n-seg/output_layer6, precision_mode=a16_w16)\n"
+  # - "performance_param(compiler_optimization_level=fast)\n"
+  # - "allocator_param(timeout=300)\n"
+# model_script:
+# - "nms_postprocess(config_path=\"/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/hailo_joined_model/yolo11n_nms_config.json\", meta_arch=yolov8)\n"
+# - "performance_param(compiler_optimization_level=1)\n"
+# - "allocator_param(max_contexts=4,timeout=300)\n"
+# - "resources_param(max_control_utilization=0.85, max_compute_utilization=0.85, max_memory_utilization=0.85)\n"
 
 # Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
-stage: "quantize"                           
+stage: "compile"                           
