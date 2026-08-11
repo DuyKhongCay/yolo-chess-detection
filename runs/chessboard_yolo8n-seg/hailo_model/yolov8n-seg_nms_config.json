@@ -1,0 +1,43 @@
+{
+    "nms_scores_th": 0.2,
+    "nms_iou_th": 0.6,
+    "image_dims": [
+        640,
+        640
+    ],
+    "max_proposals_per_class": 10,
+    "classes": 1,
+    "background_removal": false,
+    "background_removal_index": 0,
+    "max_total_proposals": 10,
+    "bbox_decoders": [
+        {
+            "name": "stride_8",
+            "stride": 8,
+            "box_layer": "conv44",
+            "cls_layer": "conv45",
+            "mask_layer": "conv46"
+        },
+        {
+            "name": "stride_16",
+            "stride": 16,
+            "box_layer": "conv60",
+            "cls_layer": "conv61",
+            "mask_layer": "conv62"
+        },
+        {
+            "name": "stride_32",
+            "stride": 32,
+            "box_layer": "conv73",
+            "cls_layer": "conv74",
+            "mask_layer": "conv75"
+        }
+    ],
+    "proto": [
+        {
+            "name": "conv48",
+            "number": 32,
+            "stride": 4
+        }
+    ]
+}
