@@ -1,5 +1,5 @@
 # Inference configuration for chess piece detection, perspective transformation, and 2x2 visualization using Draccus
-source: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/G000_IMG000_jpg.rf.83adefa53ddc009cc9a7e246182f1ad1.jpg
+source: /home/duykhongcay/hailo_ws/hailo-apps/output.jpg
 # model: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/yolo11n.hef
 model: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_model-3/yolo11n.hef
 output_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/predict

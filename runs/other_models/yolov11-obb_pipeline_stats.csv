@@ -1,0 +1,17 @@
+net_name,vstream_name,param_type,element,mean,min,max,var,sd,mean_sd,index
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv53,fps,HwReadEl11yolo11s_obb_640x640_simp/conv53,21.2249,20.5979,21.7839,0.0146,0.1208,0.0118,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv54,fps,HwReadEl10yolo11s_obb_640x640_simp/conv54,21.4227,20.9997,22.0729,0.0136,0.1168,0.0115,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv57,fps,HwReadEl9yolo11s_obb_640x640_simp/conv57,21.0185,20.6067,21.4451,0.0077,0.0879,0.0086,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv57,fps,PostInferEl9yolo11s_obb_640x640_simp/conv57,18440.2558,5436.4667,43620.5016,156218595.0531,12498.7437,1225.6027,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv67,fps,HwReadEl4yolo11s_obb_640x640_simp/conv67,21.2335,20.8687,21.8154,0.0131,0.1146,0.0112,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv68,fps,HwReadEl1yolo11s_obb_640x640_simp/conv68,21.3451,20.5779,21.9748,0.0191,0.1384,0.0136,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv71,fps,HwReadEl0yolo11s_obb_640x640_simp/conv71,21.0123,20.4659,21.2942,0.0080,0.0892,0.0087,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv71,fps,PostInferEl0yolo11s_obb_640x640_simp/conv71,91245.0386,11883.8237,160230.7323,1612032194.8679,40150.1207,3937.0433,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv85,fps,HwReadEl7yolo11s_obb_640x640_simp/conv85,21.0803,20.8534,21.7026,0.0127,0.1127,0.0111,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv86,fps,HwReadEl6yolo11s_obb_640x640_simp/conv86,21.1652,20.9642,21.7643,0.0119,0.1093,0.0107,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv89,fps,HwReadEl5yolo11s_obb_640x640_simp/conv89,21.0159,20.7304,21.3178,0.0046,0.0678,0.0067,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv89,fps,PostInferEl5yolo11s_obb_640x640_simp/conv89,141443.8699,21678.3368,206868.0182,1694873667.5212,41168.8434,4036.9372,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/input_layer1,fps,HwWriteEl3yolo11s_obb_640x640_simp/input_layer1,2712.1345,1395.2859,6894.8399,243171.9333,493.1247,47.8965,
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv57,queue_size,PullQEl_hw_read9yolo11s_obb_640x640_simp/conv57,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv71,queue_size,PullQEl_hw_read0yolo11s_obb_640x640_simp/conv71,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11s_obb_640x640_simp,yolo11s_obb_640x640_simp/conv89,queue_size,PullQEl_hw_read5yolo11s_obb_640x640_simp/conv89,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
