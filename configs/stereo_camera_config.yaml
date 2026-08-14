@@ -1,0 +1,23 @@
+sensor_res:
+- 1640
+- 1232
+output_res:
+- 1024
+- 1024
+vflip: true
+first_run: false
+hdr: 'auto'
+framerate: 30.0
+denoise: auto
+awb: auto
+ev: 5
+gain: 7.529411792755127
+exposure_time: 66662
+brightness: 0.03
+contrast: 0.95
+saturation: 0.9
+sharpness: 2
+zoom: 1.0
+tuning_file: /home/duykhongcay/hailo_ws/chess_pieces_detection/imx219_noir.json
+left_save_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/imx219_captures/left
+right_save_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/imx219_captures/right

@@ -61,7 +61,9 @@ class PredictConfig:
             raise ValueError("Missing required argument: 'seg_model'.")
 
 
-@draccus.wrap()
+@draccus.wrap(
+    config_path="/home/duykhongcay/hailo_ws/chess_pieces_detection/configs/predict_config.yaml"
+)
 def main(cfg: PredictConfig):
     """Main execution loop for chess piece detection, perspective transformation, and 2x2 grid visualization."""
     source_path = Path(cfg.source)
