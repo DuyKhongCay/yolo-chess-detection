@@ -5,6 +5,6 @@ workspace: "duykhongcay"
 # Roboflow project ID
 project: "chessred-v18oz"
 model_type: "yolo11"
-model_path: "chess_pieces_detection/pretrained_models"
-weights_filename: "chess_pieces_yolo11.pt"
-version: 2
+model_path: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/weights"
+weights_filename: "best.pt"
+version: 4
