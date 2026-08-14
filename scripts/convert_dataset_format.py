@@ -1,4 +1,4 @@
-"""Dataset conversion utility script supporting COCO-to-YOLO format and DAT-to-NPY binary array conversion."""
+"""Dataset conversion utility script supporting COCO-to-YOLO format and Image-to-NPY array conversion."""
 
 from dataclasses import dataclass, field
 import json
@@ -8,6 +8,7 @@ import shutil
 
 import draccus
 import numpy as np
+from PIL import Image
 import yaml
 
 
@@ -24,51 +25,75 @@ class CocoToYoloConfig:
 
 
 @dataclass
-class DatToNpyConfig:
-    """Configuration for DAT binary to NumPy NPY conversion."""
+class ImageToNpyConfig:
+    """Configuration for converting an image directory to a NumPy NPY array."""
 
-    input_dat: str | None = None
+    images_dir: str | None = None
     output_npy: str | None = None
+    imgsz: int = 640
     dtype: str = "float32"
     shape: list[int] | None = None
     num_samples: int | None = None
     seed: int = 42
+
+    def __post_init__(self):
+        """Validate path configurations immediately upon initialization."""
+        if not self.images_dir:
+            raise ValueError("images_dir must be specified for image_to_npy mode.")
+        if not self.output_npy:
+            raise ValueError("output_npy must be specified for image_to_npy mode.")
+        if not Path(self.images_dir).resolve().exists():
+            raise FileNotFoundError(f"Input images directory not found: {self.images_dir}")
 
 
 @dataclass
 class ConvertDatasetConfig:
     """Main dataclass configuration for dataset format conversion."""
 
-    mode: str |None=None  # Options: 'coco_to_yolo', 'dat_to_npy'
-    coco_config: CocoToYoloConfig |None=None
-    dat_config: DatToNpyConfig |None=None
+    mode: str | None = None  # Options: 'coco_to_yolo', 'image_to_npy'
+    coco_config: CocoToYoloConfig | None = None
+    image_config: ImageToNpyConfig | None = None
 
 
-def convert_dat_to_npy(cfg: DatToNpyConfig) -> None:
-    """Convert raw binary DAT file to NumPy NPY format."""
-    input_path = Path(cfg.input_dat).resolve()
+def convert_image_to_npy(cfg: ImageToNpyConfig) -> None:
+    """Convert directory of images to NumPy NPY array format."""
+    images_dir = Path(cfg.images_dir).resolve()
     output_path = Path(cfg.output_npy).resolve()
 
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input DAT file not found: {input_path}")
+    extensions = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp", "*.JPG", "*.JPEG", "*.PNG")
+    img_paths = []
+    for ext in extensions:
+        img_paths.extend(images_dir.glob(ext))
+    img_paths = sorted(list(set(img_paths)))
+
+    if not img_paths:
+        raise FileNotFoundError(f"No image files found in directory: {images_dir}")
+
+    if cfg.num_samples is not None and cfg.num_samples < len(img_paths):
+        print(f"[+] Randomly sampling {cfg.num_samples} images from total {len(img_paths)} (seed={cfg.seed})")
+        random.seed(cfg.seed)
+        img_paths = random.sample(img_paths, cfg.num_samples)
+        img_paths.sort()
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     dt = np.dtype(cfg.dtype)
-    print(f"[+] Reading binary DAT file: {input_path}")
-    raw_data = np.fromfile(input_path, dtype=dt)
 
-    if cfg.shape:
-        print(f"[+] Reshaping data to: {cfg.shape}")
-        raw_data = raw_data.reshape(tuple(cfg.shape))
+    if cfg.shape and len(cfg.shape) >= 2:
+        h, w = cfg.shape[0], cfg.shape[1]
+    else:
+        h, w = cfg.imgsz, cfg.imgsz
 
-    if cfg.num_samples is not None and cfg.num_samples < len(raw_data):
-        print(f"[+] Randomly sampling {cfg.num_samples} samples from total {len(raw_data)} samples (seed={cfg.seed})")
-        np.random.seed(cfg.seed)
-        indices = np.random.choice(len(raw_data), size=cfg.num_samples, replace=False)
-        raw_data = raw_data[indices]
+    total_imgs = len(img_paths)
+    print(f"[+] Converting {total_imgs} images from {images_dir} to NPY array (shape: ({total_imgs}, {h}, {w}, 3), dtype: {dt})")
 
-    np.save(output_path, raw_data)
-    print(f"[✓] Saved NPY file successfully: {output_path} (shape: {raw_data.shape}, dtype: {raw_data.dtype})")
+    data = np.zeros((total_imgs, h, w, 3), dtype=dt)
+    for idx, img_p in enumerate(img_paths):
+        with Image.open(img_p) as img:
+            img_rgb = img.convert("RGB").resize((w, h))
+            data[idx] = np.array(img_rgb, dtype=dt)
+
+    np.save(output_path, data)
+    print(f"[✓] Saved NPY file successfully: {output_path} (shape: {data.shape}, dtype: {data.dtype})")
 
 
 def _split_coco_json_by_splits(coco_data: dict, temp_dir: Path) -> dict[str, Path]:
@@ -147,17 +172,17 @@ def convert_coco_to_yolo(cfg: CocoToYoloConfig) -> None:
     print(f"[✓] Conversion completed. Cleaned up {deleted_count} empty/unannotated label files.")
 
 
-
 @draccus.wrap()
 def main(cfg: ConvertDatasetConfig):
     """Main entrypoint for dataset format conversion."""
-    if cfg.mode == "dat_to_npy":
-        convert_dat_to_npy(cfg.dat_config)
+    if cfg.mode == "image_to_npy":
+        convert_image_to_npy(cfg.image_config)
     elif cfg.mode == "coco_to_yolo":
         convert_coco_to_yolo(cfg.coco_config)
     else:
-        raise ValueError(f"Unsupported mode: {cfg.mode}. Supported modes: 'coco_to_yolo', 'dat_to_npy'")
+        raise ValueError(f"Unsupported mode: {cfg.mode}. Supported modes: 'coco_to_yolo', 'image_to_npy'")
 
 
 if __name__ == "__main__":
     main()
+

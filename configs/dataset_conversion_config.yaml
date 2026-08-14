@@ -1,5 +1,5 @@
 # Configuration for dataset format conversion using Draccus
-mode: "dat_to_npy"  # Options: "coco_to_yolo", "dat_to_npy"
+mode: "image_to_npy"  # Options: "coco_to_yolo", "image_to_npy"
 
 coco_config:
   json_path: "/home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/annotations.json"
@@ -8,9 +8,11 @@ coco_config:
   max_images: 2500
   # seed: 42
 
-dat_config:
-  input_dat: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_chesspieces_detect/calib_data_1024_640x640.dat"
-  output_npy: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_chesspieces_detect/npy_calib_data_100_640x640.npy"
+image_config:
+  images_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/rbflow_chesspieces_dataset/train/images
+  output_npy: "/home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/rbflow_chesspieces_dataset/calib_dataset.npy"
+  imgsz: 640
   dtype: "float32"
-  shape: [1024, 640, 640, 3]
-  num_samples: 100
+  num_samples: 16
+  seed: 42
+
