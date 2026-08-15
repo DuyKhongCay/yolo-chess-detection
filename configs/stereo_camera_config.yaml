@@ -1,0 +1,28 @@
+sensor_res:
+- 1640
+- 1232
+output_res:
+- 1024
+- 1024
+window_size: null
+vflip: false
+rotation: 180
+first_run: false
+hdr: auto
+framerate: 30.0
+denoise: auto
+awb: auto
+ae: true
+ev: 0.0
+gain: 1.0
+exposure_time: 20000
+brightness: 0.0
+contrast: 1.1
+saturation: 1.1
+sharpness: 2.0
+zoom: 1.0
+encoding: jpg
+tuning_file: /usr/share/libcamera/ipa/rpi/pisp/imx219_noir.json
+left_save_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/imx219_captures/left
+right_save_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/imx219_captures/right
+yaml_path: /home/duykhongcay/hailo_ws/chess_pieces_detection/configs/stereo_camera_config.yaml
