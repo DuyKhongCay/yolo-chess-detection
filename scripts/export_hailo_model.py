@@ -143,6 +143,10 @@ def export_hailo_model(cfg: ExportHailoConfig):
         assert os.path.isfile(optimized_har_path), "Please provide valid path for optimized HAR file"
         print(f"[+] Loading existing FP32 Optimized HAR: {optimized_har_path}")
         runner = ClientRunner(har=str(optimized_har_path))
+        if cfg.model_script:
+            script_cmds = "".join(cfg.model_script) if any("\n" in s for s in cfg.model_script) else "\n".join(cfg.model_script) + "\n"
+            print("[+] Loading model script commands from config list...")
+            runner.load_model_script(script_cmds)
 
     # STAGE: optimize (Re-uses existing native_har_path)
     elif stage == "optimize":
@@ -236,13 +240,16 @@ def export_hailo_model(cfg: ExportHailoConfig):
             print(f"[+] Quantization calibration input layers ({len(input_layers)}): {input_layers}")
 
         runner.optimize(calib_dataset_dict)
-        print("[+] Running Layer Noise Analysis (batch_size=2, data_count=16)...")
-        runner.analyze_noise(calib_dataset_dict, batch_size=2, data_count=16)
         runner.save_har(str(quantized_har_path))
-        print(f"[✓] Saved Quantized HAR (with Noise Analysis) to: {quantized_har_path}")
+        print(f"[✓] Saved Quantized HAR to: {quantized_har_path}")
 
     # Flow continuation: Run Step 4 (Compile Quantized HAR File to HEF)
     print("[+] Step 4: Compiling Quantized HAR File to HEF & Saved Compiled HAR...")
+    if cfg.model_script:
+        script_cmds = "".join(cfg.model_script) if any("\n" in s for s in cfg.model_script) else "\n".join(cfg.model_script) + "\n"
+        print("[+] Loading model script commands before compilation...")
+        runner.load_model_script(script_cmds)
+
     hef_bytes = runner.compile()
 
     with open(hef_path, "wb") as f:
@@ -254,7 +261,7 @@ def export_hailo_model(cfg: ExportHailoConfig):
     return str(hef_path)
 
 
-@draccus.wrap()
+@draccus.wrap(config_path="/home/duykhongcay/hailo_ws/chess_pieces_detection/configs/export_hailo_config.yaml")
 def main(cfg: ExportHailoConfig):
     """Main CLI entrypoint for Hailo model export."""
     export_hailo_model(cfg)
