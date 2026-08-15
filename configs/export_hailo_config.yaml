@@ -43,13 +43,13 @@
 ##### YOLO11N
 
 # Input .pt or .onnx model path
-model_path: "" 
+model_path: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-3/weights/best.pt
 # Model architecture identifier
 model_name: "yolo11n"              
 # Path to calibration images directory
-calib_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/chess_pieces.v2-calib-version.yolov11/train
+calib_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/chess_pieces.v2-calib-version.yolov11/train/images
 # Output directory for .har and .hef files 
-output_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-2/hailo_model-3      
+output_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-3/real_hailo_model     
 hw_arch: "hailo8"                      # Hailo target architecture ('hailo8', 'hailo8l', etc.)
 imgsz: 640                             # Input image size (square 640x640)
 calib_count: 1024                        # Number of calibration images to load
@@ -63,18 +63,30 @@ end_node_names:
   - "/model.23/cv3.1/cv3.1.2/Conv"
   - "/model.23/cv3.2/cv3.2.2/Conv"
 
+# # Custom model script command strings or file path
+# model_script: 
+#   - "normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
+#   - "nms_postprocess(config_path=\"/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-3/real_hailo_model/yolov11n_nms_config.json\", meta_arch=yolov8)\n"
+#   - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
+#   - "change_output_activation(conv54, sigmoid)\n"
+#   - "change_output_activation(conv65, sigmoid)\n"
+#   - "change_output_activation(conv80, sigmoid)\n"
+#   - "allocator_param(width_splitter_defuse=disabled)\n"
+#   - "performance_param(compiler_optimization_level=max)\n"
+
 # Custom model script command strings or file path
 model_script: 
   - "normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
-  - "nms_postprocess(meta_arch=yolov8, engine=cpu, nms_scores_th=0.25, nms_iou_th=0.65, classes=12)\n"
+  - "nms_postprocess(config_path=\"/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-3/real_hailo_model/yolov11n_nms_config.json\", meta_arch=yolov8)\n"
   - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
   - "change_output_activation(conv54, sigmoid)\n"
   - "change_output_activation(conv65, sigmoid)\n"
   - "change_output_activation(conv80, sigmoid)\n"
-  - "allocator_param(automatic_reshapes=disabled)\n"
+  - "allocator_param(width_splitter_defuse=disabled)\n"
+  - "performance_param(compiler_optimization_level=max)\n"
 
 # Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
-stage: "all"                           
+stage: "compile"                           
 
 ########## Multi-model
  
