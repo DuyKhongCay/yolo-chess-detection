@@ -19,11 +19,13 @@ class StereoCameraConfig:
     output_res: List[int] | None = None
     window_size: List[int] | None = None
     vflip: bool = False
+    rotation: int = 0
     first_run: bool = False
     hdr: str = "off"
     framerate: float = 30.0
     denoise: str = "auto"
     awb: str = "auto"
+    ae: bool = True
     ev: float = 0.0
 
     # Realtime camera controls
@@ -36,13 +38,21 @@ class StereoCameraConfig:
     zoom: float = 1.0
 
     # Tuning file and Save paths
+    encoding: str = "jpg"
     tuning_file: str | None = None
     left_save_dir: str | None = None
     right_save_dir: str | None = None
+    yaml_path: str = "/home/duykhongcay/hailo_ws/chess_pieces_detection/configs/stereo_camera_config.yaml"
 
     def __post_init__(self) -> None:
         """Validate configuration parameters and raise ValueError if required items are missing."""
-        required_fields = ["sensor_res", "output_res", "left_save_dir", "right_save_dir"]
+        required_fields = [
+            "sensor_res",
+            "output_res",
+            "left_save_dir",
+            "right_save_dir",
+            "yaml_path",
+        ]
         for field_name in required_fields:
             if getattr(self, field_name) is None:
                 raise ValueError(f"Missing required configuration parameter: '{field_name}' in config YAML")
@@ -124,8 +134,7 @@ class DualStereoCamera:
                 self.cam_left.start()
                 self.cam_right.start()
 
-                if not self.config.first_run:
-                    self.apply_controls(self.config)
+                self.apply_controls(self.config)
             except Exception as e:
                 print(f"[Warning] Failed to initialize Picamera2: {e}. Switching to synthetic fallback.")
                 self.use_picam = False
@@ -155,14 +164,18 @@ class DualStereoCamera:
             return
 
         controls = {
-            "AnalogueGain": self.config.gain,
-            "ExposureTime": self.config.exposure_time,
-            "Brightness": self.config.brightness,
-            "Contrast": self.config.contrast,
-            "Saturation": self.config.saturation,
-            "Sharpness": self.config.sharpness,
-            "ExposureValue": self.config.ev,
+            "AeEnable": self.config.ae,
+            "AwbEnable": (self.config.awb == "auto" or self.config.awb is True),
+            "ExposureValue": float(self.config.ev),
+            "Brightness": float(self.config.brightness),
+            "Contrast": float(self.config.contrast),
+            "Saturation": float(self.config.saturation),
+            "Sharpness": float(self.config.sharpness),
         }
+
+        if not self.config.ae:
+            controls["AnalogueGain"] = float(self.config.gain)
+            controls["ExposureTime"] = int(self.config.exposure_time)
 
         try:
             if self.cam_left:
@@ -193,6 +206,16 @@ class DualStereoCamera:
         if self.config.vflip:
             frame_l = cv2.flip(frame_l, 0)
             frame_r = cv2.flip(frame_r, 0)
+
+        if self.config.rotation == 90:
+            frame_l = cv2.rotate(frame_l, cv2.ROTATE_90_CLOCKWISE)
+            frame_r = cv2.rotate(frame_r, cv2.ROTATE_90_CLOCKWISE)
+        elif self.config.rotation == 180:
+            frame_l = cv2.rotate(frame_l, cv2.ROTATE_180)
+            frame_r = cv2.rotate(frame_r, cv2.ROTATE_180)
+        elif self.config.rotation == 270:
+            frame_l = cv2.rotate(frame_l, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            frame_r = cv2.rotate(frame_r, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
         if self.config.zoom > 1.0:
             frame_l = apply_zoom(frame_l, self.config.zoom)
