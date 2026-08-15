@@ -89,8 +89,8 @@ class ZoomableImageLabel(QLabel):
         if self.zoom_factor <= 1.0:
             return frame
         h, w = frame.shape[:2]
-        crop_w = max(1, int(w / self.zoom_factor))
-        crop_h = max(1, int(h / self.zoom_factor))
+        crop_w = max(1, int(w / zoom_factor)) if (zoom_factor := self.zoom_factor) else w
+        crop_h = max(1, int(h / zoom_factor))
 
         center_x = int(w / 2.0 + self.pan_x * w)
         center_y = int(h / 2.0 + self.pan_y * h)
@@ -148,16 +148,7 @@ class StereoCamMainWindow(QMainWindow):
         self.config = config
 
         self.camera = DualStereoCamera(self.config)
-
-        if self.config.first_run:
-            defaults = self.camera.read_default_controls()
-            for k, v in defaults.items():
-                if hasattr(self.config, k):
-                    setattr(self.config, k, v)
-            self.config.first_run = False
-            self.config.save_to_yaml(self.config_path)
-        else:
-            self.camera.apply_controls(self.config)
+        self.camera.apply_controls(self.config)
 
         self.fps_last_time = time.perf_counter()
         self.fps_frame_count = 0
@@ -165,7 +156,7 @@ class StereoCamMainWindow(QMainWindow):
 
         self.setWindowTitle("Stereo Camera Controller (0.0 FPS)")
         
-        # Calculate initial window size (default height = 640) to fit 2 horizontal video feeds + control panel
+        # Calculate initial window size to fit 2 horizontal video feeds + control panel
         out_w, out_h = self.config.output_res if self.config.output_res else (1024, 1024)
         aspect_ratio = out_w / out_h
         win_h = 480
@@ -210,19 +201,35 @@ class StereoCamMainWindow(QMainWindow):
         control_group = QGroupBox("Camera Parameters", self)
         control_layout = QFormLayout(control_group)
 
-        # Gain
+        # Auto Exposure Checkbox
+        self.check_ae = QCheckBox("Auto Exposure (AE)", self)
+        self.check_ae.setChecked(self.config.ae)
+        self.check_ae.toggled.connect(self.on_ae_toggled)
+        control_layout.addRow(self.check_ae)
+
+        # Exposure Value (EV compensation)
+        self.spin_ev = QDoubleSpinBox()
+        self.spin_ev.setRange(-8.0, 8.0)
+        self.spin_ev.setSingleStep(0.1)
+        self.spin_ev.setValue(self.config.ev)
+        self.spin_ev.valueChanged.connect(self.on_config_changed)
+        control_layout.addRow("EV:", self.spin_ev)
+
+        # Gain (Manual mode)
         self.spin_gain = QDoubleSpinBox()
         self.spin_gain.setRange(1.0, 16.0)
         self.spin_gain.setSingleStep(0.1)
         self.spin_gain.setValue(self.config.gain)
+        self.spin_gain.setEnabled(not self.config.ae)
         self.spin_gain.valueChanged.connect(self.on_config_changed)
         control_layout.addRow("Gain:", self.spin_gain)
 
-        # Exposure Time
+        # Exposure Time (Manual mode)
         self.spin_exposure = QSpinBox()
         self.spin_exposure.setRange(100, 100000)
         self.spin_exposure.setSingleStep(500)
         self.spin_exposure.setValue(self.config.exposure_time)
+        self.spin_exposure.setEnabled(not self.config.ae)
         self.spin_exposure.valueChanged.connect(self.on_config_changed)
         control_layout.addRow("Exposure (us):", self.spin_exposure)
 
@@ -258,6 +265,22 @@ class StereoCamMainWindow(QMainWindow):
         self.spin_sharpness.valueChanged.connect(self.on_config_changed)
         control_layout.addRow("Sharpness:", self.spin_sharpness)
 
+        # Rotation
+        self.combo_rotation = QComboBox()
+        self.combo_rotation.addItems(["0°", "90°", "180°", "270°"])
+        rot_map = {0: 0, 90: 1, 180: 2, 270: 3}
+        self.combo_rotation.setCurrentIndex(rot_map.get(self.config.rotation, 0))
+        self.combo_rotation.currentIndexChanged.connect(self.on_config_changed)
+        control_layout.addRow("Rotation:", self.combo_rotation)
+
+        # Encoding
+        self.combo_encoding = QComboBox()
+        self.combo_encoding.addItems(["jpg", "png", "bmp"])
+        enc_idx = ["jpg", "png", "bmp"].index(self.config.encoding) if self.config.encoding in ["jpg", "png", "bmp"] else 0
+        self.combo_encoding.setCurrentIndex(enc_idx)
+        self.combo_encoding.currentIndexChanged.connect(self.on_config_changed)
+        control_layout.addRow("Encoding:", self.combo_encoding)
+
         # Save Button
         self.btn_capture = QPushButton("Save Stereo Pair", self)
         self.btn_capture.setStyleSheet("background-color: #2b5b84; color: white; font-weight: bold; padding: 8px;")
@@ -273,21 +296,34 @@ class StereoCamMainWindow(QMainWindow):
         main_layout.addLayout(video_layout, stretch=4)
         main_layout.addWidget(control_group, stretch=1)
 
+    @Slot(bool)
+    def on_ae_toggled(self, checked: bool) -> None:
+        """Toggle manual exposure controls when auto-exposure is enabled or disabled."""
+        self.spin_gain.setEnabled(not checked)
+        self.spin_exposure.setEnabled(not checked)
+        self.on_config_changed()
+
     @Slot()
     def on_config_changed(self) -> None:
         """Update config data and persist parameters to YAML config file."""
+        self.config.ae = self.check_ae.isChecked()
+        self.config.ev = float(self.spin_ev.value())
         self.config.gain = float(self.spin_gain.value())
         self.config.exposure_time = int(self.spin_exposure.value())
         self.config.brightness = float(self.spin_brightness.value())
         self.config.contrast = float(self.spin_contrast.value())
         self.config.saturation = float(self.spin_saturation.value())
         self.config.sharpness = float(self.spin_sharpness.value())
+        
+        rot_values = [0, 90, 180, 270]
+        self.config.rotation = rot_values[self.combo_rotation.currentIndex()]
+        self.config.encoding = self.combo_encoding.currentText()
 
         # Update live camera controls
         self.camera.apply_controls(self.config)
 
         # Persist to YAML file
-        self.config.save_to_yaml(self.config_path)
+        self.config.save_to_yaml(self.config.yaml_path)
         self.label_status.setText("Config Saved.")
 
     def update_frames(self) -> None:
@@ -324,11 +360,12 @@ class StereoCamMainWindow(QMainWindow):
         os.makedirs(self.config.left_save_dir, exist_ok=True)
         os.makedirs(self.config.right_save_dir, exist_ok=True)
 
-        next_idx = self._get_next_image_index()
+        ext = self.config.encoding.lstrip(".")
+        next_idx = self._get_next_image_index(ext)
         num_str = f"{next_idx:04d}"
 
-        file_l = os.path.join(self.config.left_save_dir, f"left_{num_str}.jpg")
-        file_r = os.path.join(self.config.right_save_dir, f"right_{num_str}.jpg")
+        file_l = os.path.join(self.config.left_save_dir, f"left_{num_str}.{ext}")
+        file_r = os.path.join(self.config.right_save_dir, f"right_{num_str}.{ext}")
 
         # Convert Picamera2 RGB array to BGR for cv2.imwrite to maintain original color format
         frame_l_bgr = cv2.cvtColor(frame_l, cv2.COLOR_RGB2BGR)
@@ -337,24 +374,25 @@ class StereoCamMainWindow(QMainWindow):
         cv2.imwrite(file_l, frame_l_bgr)
         cv2.imwrite(file_r, frame_r_bgr)
 
-        msg = f"Saved: left_{num_str}.jpg & right_{num_str}.jpg"
+        msg = f"Saved: left_{num_str}.{ext} & right_{num_str}.{ext}"
         self.label_status.setText(msg)
         print(f"[Captured] Left: {file_l} | Right: {file_r}")
 
         # Show floating toast notification at bottom-right corner, auto disappearing in 3s
-        toast_msg = f"✓ Đã lưu: left_{num_str}.jpg & right_{num_str}.jpg"
+        toast_msg = f"✓ Đã lưu: left_{num_str}.{ext} & right_{num_str}.{ext}"
         self.toast = ToastNotification(toast_msg, self, timeout_ms=3000)
         self.toast.show()
 
-    def _get_next_image_index(self) -> int:
+    def _get_next_image_index(self, ext: str = "jpg") -> int:
         """Scan left and right save directories for existing formatted files and return next available 0-indexed integer."""
         max_idx = -1
+        ext_with_dot = f".{ext.lstrip('.')}"
         for save_dir, prefix in [(self.config.left_save_dir, "left_"), (self.config.right_save_dir, "right_")]:
             if not os.path.exists(save_dir):
                 continue
             for fname in os.listdir(save_dir):
-                if fname.startswith(prefix) and fname.endswith(".jpg"):
-                    num_part = fname[len(prefix):-4]
+                if fname.startswith(prefix) and fname.endswith(ext_with_dot):
+                    num_part = fname[len(prefix):-len(ext_with_dot)]
                     if num_part.isdigit():
                         max_idx = max(max_idx, int(num_part))
         return max_idx + 1
