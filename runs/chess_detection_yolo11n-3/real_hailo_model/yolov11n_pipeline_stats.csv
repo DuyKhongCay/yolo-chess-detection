@@ -1,0 +1,17 @@
+net_name,vstream_name,param_type,element,mean,min,max,var,sd,mean_sd,index
+yolo11n,yolo11n/input_layer1,fps,HwWriteEl8yolo11n/input_layer1,3396.6269,1947.0746,92310.5326,17136063.6870,4139.5729,191.5566,
+yolo11n,yolo11n/input_layer1,fps,PreInferEl8yolo11n/input_layer1,840.4263,601.7264,955.3316,20040.1485,141.5632,6.5438,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl0yolo11n/conv65_143,56.9900,53.5618,58.1099,0.0774,0.2782,0.0129,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl1yolo11n/conv62_143,56.9925,53.2962,57.8963,0.0956,0.3091,0.0143,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl2yolo11n/conv51_143,56.9798,53.6990,57.9327,0.0727,0.2696,0.0125,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl3yolo11n/conv54_143,56.9924,53.3076,58.8367,0.1480,0.3847,0.0178,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl4yolo11n/conv80_143,56.9818,53.2309,60.4730,0.1786,0.4226,0.0196,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,HwReadEl8yolo11n/conv77_143,56.9921,48.5798,64.1178,0.3539,0.5949,0.0276,
+yolo11n,yolo11n/yolov8_nms_postprocess,fps,NmsPPMuxEl0YOLOV8-Post-Process,3334.8296,2440.0183,3813.5626,316820.7378,562.8683,26.0744,
+yolo11n,yolo11n/input_layer1,queue_size,PushQEl8yolo11n/input_layer1,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms0yolo11n/conv65_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms1yolo11n/conv62_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms2yolo11n/conv51_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms3yolo11n/conv54_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms4yolo11n/conv80_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
+yolo11n,yolo11n/yolov8_nms_postprocess,queue_size,PullQEl_nms8yolo11n/conv77_143,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0
