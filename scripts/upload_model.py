@@ -17,9 +17,11 @@ class UploadModelConfig:
     workspace: str | None = None
     # Roboflow project ID
     project: str = ""
-    # Roboflow project version ID
-    version: int = 1
-    # Model architecture type for Roboflow deploy (e.g., 'yolov8')
+    # Model name for versionless deploy (optional, defaults to project name)
+    model_name: str | None = None
+    # Roboflow project version ID (leave None/empty for versionless deploy)
+    version: int | None = None
+    # Model architecture type for Roboflow deploy (e.g., 'yolov8', 'yolo11')
     model_type: str = "yolov8"
     # Path to model file (.pt) or training directory
     model_path: str = ""
@@ -28,7 +30,7 @@ class UploadModelConfig:
 
 
 def upload_model_to_roboflow(cfg: UploadModelConfig) -> None:
-    """Upload trained model weights to Roboflow version."""
+    """Upload trained model weights to Roboflow (versioned or versionless)."""
     api_key = cfg.api_key or os.getenv("ROBOFLOW_API_KEY")
     if not api_key:
         raise ValueError("API key is required. Specify api_key in config or set ROBOFLOW_API_KEY env var.")
@@ -48,29 +50,45 @@ def upload_model_to_roboflow(cfg: UploadModelConfig) -> None:
         model_dir = str(path_obj)
         weights_file = cfg.weights_filename
 
-    print(f"\n--- Uploading Model Weights to Roboflow ---")
+    rf = Roboflow(api_key=api_key)
+    ws = rf.workspace(cfg.workspace) if cfg.workspace else rf.workspace()
+    model_name = (cfg.model_name or cfg.project).replace("_", "-").replace(" ", "-")
+
+    print("\n--- Uploading Model Weights to Roboflow ---")
     print(f"Workspace:     {cfg.workspace or 'Default'}")
     print(f"Project ID:    {cfg.project}")
-    print(f"Version ID:    {cfg.version}")
+    print(f"Model Name:    {model_name}")
     print(f"Model Type:    {cfg.model_type}")
     print(f"Model Dir:     {model_dir}")
     if weights_file:
         print(f"Weights File:  {weights_file}")
 
-    rf = Roboflow(api_key=api_key)
-    ws = rf.workspace(cfg.workspace) if cfg.workspace else rf.workspace()
-    proj = ws.project(cfg.project)
-    proj_version = proj.version(cfg.version)
-
-    if weights_file:
-        proj_version.deploy(cfg.model_type, model_dir, weights_file)
+    # Versionless deploy when version is not provided
+    if cfg.version is None:
+        print("Deploy Mode:   Versionless (workspace.deploy_model)")
+        project_ids = [p.strip() for p in cfg.project.split(",") if p.strip()]
+        deploy_kwargs = {
+            "model_type": cfg.model_type,
+            "model_path": model_dir,
+            "project_ids": project_ids,
+            "model_name": model_name,
+        }
+        if weights_file:
+            deploy_kwargs["filename"] = weights_file
+        ws.deploy_model(**deploy_kwargs)
     else:
-        proj_version.deploy(cfg.model_type, model_dir)
+        print(f"Deploy Mode:   Versioned (project.version({cfg.version}).deploy)")
+        proj = ws.project(cfg.project)
+        proj_version = proj.version(int(cfg.version))
+        if weights_file:
+            proj_version.deploy(cfg.model_type, model_dir, weights_file)
+        else:
+            proj_version.deploy(cfg.model_type, model_dir)
 
     print("\nModel deploy to Roboflow completed successfully!")
 
 
-@draccus.wrap()
+@draccus.wrap(config_path="/home/duykhongcay/hailo_ws/chess_pieces_detection/configs/upload_model_config.yaml")
 def main(cfg: UploadModelConfig) -> None:
     """Main entrypoint for uploading model weights to Roboflow."""
     upload_model_to_roboflow(cfg)

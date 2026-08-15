@@ -3,8 +3,11 @@ api_key: "BBa42pbZMPubiGI6d9XI"
 # Roboflow workspace ID
 workspace: "duykhongcay"
 # Roboflow project ID
-project: "chessred-v18oz"
+project: "chess_pieces-rs6op"
+# Model name identifier (used for versionless deploy; only alphanumeric and dashes allowed)
+model_name: "real-chesspieces-yolo11n"
 model_type: "yolo11"
-model_path: "chess_pieces_detection/pretrained_models"
-weights_filename: "chess_pieces_yolo11.pt"
-version: 2
+model_path: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chess_detection_yolo11n-3/weights"
+weights_filename: "best.pt"
+# Project version ID (set null/empty for versionless deploy, or specify int version e.g. 4)
+version: 1
