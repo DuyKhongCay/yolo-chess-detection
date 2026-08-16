@@ -74,6 +74,8 @@ stage: "quantize"
 
 # # Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
 # stage: "compile"                           
+# # Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
+# stage: "compile"                           
 
 ########## Multi-model
  
