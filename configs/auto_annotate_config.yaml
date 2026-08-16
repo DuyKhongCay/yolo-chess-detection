@@ -1,0 +1,14 @@
+# Configuration for chessboard auto-annotation using Draccus
+images_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/imx219_captures/right"
+output_dir: "/home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/chessboard_yolo_dataset"
+model_path: "/home/duykhongcay/hailo_ws/chess_pieces_detection/runs/chessboard_yolo8n-seg/hailo_model/yolov8n-seg.hef"
+image_count: -1
+conf_threshold: 0.4
+iou_threshold: 0.6
+imgsz: 640
+device: "cpu"
+class_id: 0
+class_name: "chessboard"
+save_visualizations: false
+resume: true
+seed: 42
