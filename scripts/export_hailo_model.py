@@ -37,6 +37,7 @@ class ExportHailoConfig:
     imgsz: int = 640                             # Input image size (square 640x640)
     calib_count: int = 64                        # Number of calibration images to load
     device: str = "cpu"                          # Execution device ('gpu', '0', 'cpu', '-1')
+    stereo_model: bool = False                   # Flag indicating dual-input stereo model (requires left/right calib folders)
     end_node_names: list[str] | None = None      # Custom end node names to trim ONNX graph
     model_script: list[str] | None = None        # Custom model script command strings or file path
     stage: str = "all"                           # Pipeline starting stage: 'all', 'optimize', 'quantize', 'compile'
@@ -59,12 +60,26 @@ class ExportHailoConfig:
         if self.model_script is not None and not isinstance(self.model_script, list):
             raise TypeError(f"model_script must be a list of strings (list[str]), got {type(self.model_script).__name__}")
 
+        if self.stereo_model and self.calib_dir:
+            left_dir = Path(self.calib_dir) / "left"
+            right_dir = Path(self.calib_dir) / "right"
+            if not left_dir.is_dir() or not right_dir.is_dir():
+                raise FileNotFoundError(
+                    f"stereo_model=True requires both 'left/' and 'right/' subdirectories inside "
+                    f"calib_dir: '{Path(self.calib_dir).resolve()}'"
+                )
+
 
 def configure_device(device: str):
-    """Set CUDA_VISIBLE_DEVICES environment variable based on device configuration."""
+    """Set device configuration for TensorFlow and PyTorch."""
     dev = str(device).lower().strip()
     if dev in ("cpu", "-1"):
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        try:
+            import tensorflow as tf
+            tf.config.set_visible_devices([], "GPU")
+        except Exception:
+            pass
         print("[+] Device target: CPU")
     elif dev in ("gpu", "cuda"):
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -74,31 +89,44 @@ def configure_device(device: str):
         print(f"[+] Device target: GPU (cuda:{dev})")
 
 
-def load_calibration_dataset(calib_dir_path: str | Path, count: int = 1024, imgsz: int = 640) -> np.ndarray:
-    """Load and preprocess un-normalized calibration dataset directly from image directory."""
+def load_calibration_dataset(
+    calib_dir_path: str | Path,
+    count: int = 1024,
+    imgsz: int = 640,
+    stereo_model: bool = False
+) -> np.ndarray | dict[str, np.ndarray]:
+    """Load calibration images. Stereo path validation is guaranteed by ExportHailoConfig.__post_init__."""
     img_dir = Path(calib_dir_path)
-    if not img_dir.exists():
-        raise FileNotFoundError(f"Calibration images directory not found at: {calib_dir_path}")
 
-    # Search for common image file extensions
-    img_paths = sorted(
-        list(img_dir.glob("*.jpg")) + list(img_dir.glob("*.png")) + list(img_dir.glob("*.jpeg")) +
-        list(img_dir.glob("*.JPG")) + list(img_dir.glob("*.PNG")) + list(img_dir.glob("*.JPEG"))
-    )[:count]
+    # Helper function to read image list
+    def _read_images(folder: Path) -> list[Path]:
+        exts = ("*.jpg", "*.png", "*.jpeg", "*.JPG", "*.PNG", "*.JPEG")
+        paths = []
+        for ext in exts:
+            paths.extend(folder.glob(ext))
+        return sorted(paths)[:count]
 
-    if not img_paths:
-        raise FileNotFoundError(f"No calibration images (.jpg, .png, .jpeg) found in directory: {img_dir}")
+    # Helper function to load images into numpy array
+    def _load_numpy(paths: list[Path]) -> np.ndarray:
+        total = len(paths)
+        data = np.zeros((total, imgsz, imgsz, 3), dtype=np.float32)
+        for idx, p in enumerate(paths):
+            with Image.open(p) as img:
+                data[idx] = np.array(img.convert("RGB").resize((imgsz, imgsz)), dtype=np.float32)
+        return data
 
-    total_imgs = len(img_paths)
-    print(f"[+] Loading {total_imgs} calibration images directly from directory: {img_dir}")
+    if stereo_model:
+        left_paths = _read_images(img_dir / "left")
+        right_paths = _read_images(img_dir / "right")
+        num_pairs = min(len(left_paths), len(right_paths))
+        print(f"[+] Loading {num_pairs} stereo calibration pairs from: {img_dir}")
+        return {"left": _load_numpy(left_paths), "right": _load_numpy(right_paths)}
 
-    calib_dataset = np.zeros((total_imgs, imgsz, imgsz, 3), dtype=np.float32)
-    for idx, p in enumerate(img_paths):
-        with Image.open(p) as img:
-            img_rgb = img.convert("RGB").resize((imgsz, imgsz))
-            calib_dataset[idx] = np.array(img_rgb, dtype=np.float32)
-
-    return calib_dataset
+    paths = _read_images(img_dir)
+    if not paths:
+        raise FileNotFoundError(f"No calibration images found in: {img_dir}")
+    print(f"[+] Loading {len(paths)} calibration images from: {img_dir}")
+    return _load_numpy(paths)
 
 
 def export_hailo_model(cfg: ExportHailoConfig):
@@ -221,22 +249,26 @@ def export_hailo_model(cfg: ExportHailoConfig):
     # Flow continuation: Run Step 3 (INT8 Quantization Optimization) if needed
     if stage in ("all", "optimize", "quantize"):
         print("[+] Step 3: Running INT8 Quantization Optimization...")
-        calib_dataset = load_calibration_dataset(
+        calib_data = load_calibration_dataset(
             cfg.calib_dir,
             count=cfg.calib_count,
-            imgsz=cfg.imgsz
+            imgsz=cfg.imgsz,
+            stereo_model=cfg.stereo_model
         )
 
         # Inspect HN model input layer names
         hn_layers = runner.get_hn_dict().get("layers", {})
         input_layers = [l_name for l_name, l_info in hn_layers.items() if l_info.get("type") == "input_layer"]
 
-        if not input_layers:
-            input_layer_name = f"{cfg.model_name}/input_layer1"
-            calib_dataset_dict = {input_layer_name: calib_dataset}
-            print(f"[+] Quantization calibration input layer: '{input_layer_name}'")
+        if cfg.stereo_model:
+            # Map left/right arrays to the two HN input layers by their list order
+            calib_dataset_dict = {
+                input_layers[0]: calib_data["left"],
+                input_layers[1]: calib_data["right"],
+            }
+            print(f"[+] Stereo calibration input mapping: {list(calib_dataset_dict.keys())}")
         else:
-            calib_dataset_dict = {l_name: calib_dataset for l_name in input_layers}
+            calib_dataset_dict = {l_name: calib_data for l_name in input_layers}
             print(f"[+] Quantization calibration input layers ({len(input_layers)}): {input_layers}")
 
         runner.optimize(calib_dataset_dict)
