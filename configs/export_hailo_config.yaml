@@ -128,7 +128,7 @@ output_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/LightStereo_M
 hw_arch: "hailo8"                      # Hailo target architecture ('hailo8', 'hailo8l')
 imgsz: 640                             # Input image size (square 640x640)
 calib_count: 128                       # Number of stereo calibration pairs to load
-device: cpu                            # Execution device ('gpu', '0', 'cpu', '-1')
+device: 0                            # Execution device ('gpu', '0', 'cpu', '-1')
 stereo_model: true                     # Enable stereo dual-input calibration validation (requires left/ & right/ folders)
 
 # Custom end node names (empty = parse full ONNX graph)
@@ -145,7 +145,7 @@ model_script:
   - "nv12_to_yuv2, yuv_to_rgb2 = input_conversion(lightstereo-m-sceneflow/input_layer2, nv12_to_rgb)\n"
   
   # 2. Optimization Level & Batch Size for Real-time Streaming
-  - "model_optimization_flavor(optimization_level=1,  compression_level=2, batch_size=1)\n"
+  - "model_optimization_flavor(optimization_level=1, batch_size=1)\n"
   
   # 3. High-Precision Quantization Mode (Uncomment if disparity accuracy drops in INT8)
   # - "quantization_param(lightstereo-m-sceneflow/output_layer1, precision_mode=a16_w16)\n"
@@ -153,6 +153,7 @@ model_script:
   # 4. Compiler Performance & Context Allocation (Target: 5-10+ FPS Real-time Streaming)
   - "performance_param(compiler_optimization_level=1,  optimize_for_batch=1)\n"
   - "resources_param(max_utilization=0.8)\n"
+  - "platform_param(hints=[low_pcie_bandwidth])\n"
 
 # Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
 stage: "compile"
