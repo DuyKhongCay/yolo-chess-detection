@@ -1,3 +1,5 @@
+runs/LightStereo_M_SceneFlow/lightstereo-m-sceneflow_quantized_model.har
+
 /pretrained_models
 
 configs/token.json
