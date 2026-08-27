@@ -6,7 +6,7 @@ import os
 import sys
 import yaml
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 import draccus
 
 try:
@@ -34,7 +34,7 @@ class ExportHailoConfig:
     output_dir: str                             # Output directory for .har and .hef files
     model_path: str = ""                        # Input .pt or .onnx model path (configured via config file or CLI)
     hw_arch: str = "hailo8"                      # Hailo target architecture ('hailo8', 'hailo8l', etc.)
-    imgsz: int = 640                             # Input image size (square 640x640)
+    imgsz: str = "640x640"                       # Input image size in 'height:width' format (e.g. '480:640')
     calib_count: int = 64                        # Number of calibration images to load
     device: str = "cpu"                          # Execution device ('gpu', '0', 'cpu', '-1')
     stereo_model: bool = False                   # Flag indicating dual-input stereo model (requires left/right calib folders)
@@ -91,12 +91,13 @@ def configure_device(device: str):
 
 def load_calibration_dataset(
     calib_dir_path: str | Path,
-    count: int = 1024,
-    imgsz: int = 640,
+    count: int ,
+    imgsz: str ,
     stereo_model: bool = False
 ) -> np.ndarray | dict[str, np.ndarray]:
     """Load calibration images. Stereo path validation is guaranteed by ExportHailoConfig.__post_init__."""
     img_dir = Path(calib_dir_path)
+    h, w = map(int, str(imgsz).split("x"))
 
     # Helper function to read image list
     def _read_images(folder: Path) -> list[Path]:
@@ -104,28 +105,30 @@ def load_calibration_dataset(
         paths = []
         for ext in exts:
             paths.extend(folder.glob(ext))
+        if len(paths) < count:
+            raise FileNotFoundError(
+                f"Found only {len(paths)} calibration images in '{folder}', but count={count} is required."
+            )
         return sorted(paths)[:count]
 
-    # Helper function to load images into numpy array
+    # Helper function to load images into numpy array with aspect-ratio preserving padding
     def _load_numpy(paths: list[Path]) -> np.ndarray:
         total = len(paths)
-        data = np.zeros((total, imgsz, imgsz, 3), dtype=np.float32)
+        data = np.zeros((total, h, w, 3), dtype=np.float32)
         for idx, p in enumerate(paths):
             with Image.open(p) as img:
-                data[idx] = np.array(img.convert("RGB").resize((imgsz, imgsz)), dtype=np.float32)
+                padded_img = ImageOps.pad(img.convert("RGB"), (w, h), color=(114, 114, 114))
+                data[idx] = np.array(padded_img, dtype=np.float32)
         return data
 
     if stereo_model:
         left_paths = _read_images(img_dir / "left")
         right_paths = _read_images(img_dir / "right")
-        num_pairs = min(len(left_paths), len(right_paths))
-        print(f"[+] Loading {num_pairs} stereo calibration pairs from: {img_dir}")
+        print(f"[+] Loading {count} stereo calibration pairs (HxW: {h}x{w}) from: {img_dir}")
         return {"left": _load_numpy(left_paths), "right": _load_numpy(right_paths)}
 
     paths = _read_images(img_dir)
-    if not paths:
-        raise FileNotFoundError(f"No calibration images found in: {img_dir}")
-    print(f"[+] Loading {len(paths)} calibration images from: {img_dir}")
+    print(f"[+] Loading {count} calibration images (HxW: {h}x{w}) from: {img_dir}")
     return _load_numpy(paths)
 
 
@@ -196,10 +199,11 @@ def export_hailo_model(cfg: ExportHailoConfig):
                 if not ULTRALYTICS_AVAILABLE:
                     raise ImportError("ultralytics package is required to convert .pt model to .onnx format.")
                 print(f"[+] Step 0: Exporting PyTorch model '{input_path}' to ONNX...")
+                h, w = map(int, str(cfg.imgsz).split("x"))
                 yolo_model = YOLO(str(input_path))
                 exported_onnx = yolo_model.export(
                     format="onnx",
-                    imgsz=cfg.imgsz,
+                    imgsz=h if h == w else [h, w],
                     simplify=True,
                     device="cpu" if cfg.device.lower() in ("cpu", "-1") else 0
                 )

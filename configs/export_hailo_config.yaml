@@ -114,46 +114,45 @@
 ########## LightStereo-M-SceneFlow (Stereo Depth Estimation)
 
 # Input ONNX model path
-model_path: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/LightStereo_M_SceneFlow/LightStereo-M-SceneFlow.onnx
+model_path: /home/duykhongcay/hailo_ws/PINTO_model_zoo/202_stereoDNN/saved_model_resnet18_2d_257x513/model_float32.onnx
 
 # Model architecture identifier
-model_name: "lightstereo-m-sceneflow"
+model_name: stereoDNN
 
 # Path to stereo calibration images directory containing left/ and right/ subfolders
 calib_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/datasets/imx219_captures
 
 # Output directory for .har and .hef files
-output_dir: /home/duykhongcay/hailo_ws/chess_pieces_detection/runs/LightStereo_M_SceneFlow
+output_dir: /home/duykhongcay/hailo_ws/PINTO_model_zoo/202_stereoDNN/saved_model_resnet18_2d_257x513
 
 hw_arch: "hailo8"                      # Hailo target architecture ('hailo8', 'hailo8l')
-imgsz: 640                             # Input image size (square 640x640)
-calib_count: 128                       # Number of stereo calibration pairs to load
-device: cpu                            # Execution device ('gpu', '0', 'cpu', '-1')
+imgsz: 480x640                             # Input image size (square 640x640)
+calib_count: 64                       # Number of stereo calibration pairs to load
+device: 0                            # Execution device ('gpu', '0', 'cpu', '-1')
 stereo_model: true                     # Enable stereo dual-input calibration validation (requires left/ & right/ folders)
 
 # Custom end node names (empty = parse full ONNX graph)
 end_node_names:
-  - "/Transpose_50"     # Cost-volume disparity regression output (init_disp)
-  - "/Gather_11"       # SPX spatial context guide feature (spx weights pre-upsample)
+
 
 # Custom model script command strings for Hailo DFC v3.31
 model_script:
   # 1. Normalization & Input Conversion (for both Left & Right inputs)
   # Support hardware NV12 input from GStreamer libcamerasrc directly without CPU color conversion
-  - "normalization1, normalization2 = normalization([123.675, 116.28, 103.53], [58.395, 57.12, 57.375])\n"
-  - "nv12_to_yuv1, yuv_to_rgb1 = input_conversion(lightstereo-m-sceneflow/input_layer1, nv12_to_rgb)\n"
-  - "nv12_to_yuv2, yuv_to_rgb2 = input_conversion(lightstereo-m-sceneflow/input_layer2, nv12_to_rgb)\n"
+  - "normalization1, normalization2 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])\n"
+  - "nv12_to_yuv1, yuv_to_rgb1 = input_conversion(stereoDNN/input_layer1, nv12_to_rgb)\n"
+  - "nv12_to_yuv2, yuv_to_rgb2 = input_conversion(stereoDNN/input_layer2, nv12_to_rgb)\n"
   
   # 2. Optimization Level & Batch Size for Real-time Streaming
-  - "model_optimization_flavor(optimization_level=1,  compression_level=2, batch_size=1)\n"
+  - "model_optimization_flavor(optimization_level=2, batch_size=1)\n"
   
   # 3. High-Precision Quantization Mode (Uncomment if disparity accuracy drops in INT8)
   # - "quantization_param(lightstereo-m-sceneflow/output_layer1, precision_mode=a16_w16)\n"
   
   # 4. Compiler Performance & Context Allocation (Target: 5-10+ FPS Real-time Streaming)
-  - "performance_param(compiler_optimization_level=1,  optimize_for_batch=1)\n"
-  - "resources_param(max_utilization=0.8)\n"
+  # - "performance_param(compiler_optimization_level=max,  optimize_for_batch=1)\n"
+  - "platform_param(hints=[low_pcie_bandwidth])\n"
 
 # Starting pipeline stage: 'all', 'optimize', 'quantize', 'compile'
-stage: "compile"
+stage: "all"
                            
